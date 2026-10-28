@@ -1,6 +1,7 @@
 export type NavigationTab = 
   | 'overview' 
   | 'delivery-briefing'
+  | 'deployment-wbs'
   | 'accounts' 
   | 'users' 
   | 'flows' 
@@ -254,4 +255,62 @@ export interface DeliveryProject {
     plannedNextWeek: string[];
   };
   milestones: DeliveryMilestoneItem[];
+  wbsTasks?: WbsTask[];
+  velocityMetrics?: TeamVelocityMetrics;
+}
+
+export type WbsTaskStatus = 'not-started' | 'in-progress' | 'in-review' | 'blocked' | 'completed';
+export type WbsTaskPriority = 'critical' | 'high' | 'medium' | 'low';
+
+export interface WbsAssignee {
+  id: string;
+  name: string;
+  avatar: string;
+  role: string;
+  email: string;
+}
+
+export interface WbsTask {
+  id: string; // e.g. "SHPL-WBS-1.1"
+  projectId: string; // references DeliveryProject.id
+  phase: string; // e.g. "Phase 1: Architecture & Infosec"
+  workPackage: string; // e.g. "Infosec & Governance"
+  taskName: string; // e.g. "Configure SAML 2.0 SSO and SCIM provisioning"
+  assignedUser: WbsAssignee;
+  status: WbsTaskStatus;
+  priority: WbsTaskPriority;
+  estimatedHours: number;
+  actualHours: number;
+  progress: number; // 0-100
+  plannedStart: string; // YYYY-MM-DD
+  plannedFinish: string; // YYYY-MM-DD
+  actualFinish?: string;
+  dependencyId?: string; // Predecessor WBS ID
+  isCriticalPath?: boolean;
+  isMilestone?: boolean;
+  blockerNote?: string;
+  lastUpdated?: string;
+}
+
+export interface UserWorkloadItem {
+  userId: string;
+  name: string;
+  avatar: string;
+  role: string;
+  assignedHours: number;
+  loggedHours: number;
+  completedTasks: number;
+  totalTasks: number;
+  openBlockers: number;
+  efficiencyRatio: number; // actualHours / (estimatedHours * progress/100 || 1)
+}
+
+export interface TeamVelocityMetrics {
+  weeklyBurnHours: number;
+  targetBurnHours: number;
+  tasksCompletedThisSprint: number;
+  totalTasksInSprint: number;
+  velocityTrend: 'accelerating' | 'steady' | 'degrading';
+  sprintNumber: number;
+  userWorkloads: UserWorkloadItem[];
 }

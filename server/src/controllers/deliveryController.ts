@@ -3,7 +3,8 @@ import { MOCK_DELIVERY_PROJECTS } from '../../../src/data/mockData';
 import { DeliveryProject } from '../../../src/types';
 
 // In-memory state for live mutation support during server lifetime
-let deliveryProjects: DeliveryProject[] = [...MOCK_DELIVERY_PROJECTS];
+export let deliveryProjects: DeliveryProject[] = [...MOCK_DELIVERY_PROJECTS];
+
 
 /**
  * GET /api/v1/delivery/projects

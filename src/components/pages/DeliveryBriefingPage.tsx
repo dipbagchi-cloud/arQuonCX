@@ -24,7 +24,8 @@ import {
   Flame,
   Award,
   FileSpreadsheet,
-  UploadCloud
+  UploadCloud,
+  ListChecks
 } from 'lucide-react';
 import { DeliveryProject, DeliveryHealthStatus, DeliveryPhase } from '../../types';
 import { ProjectLogo } from '../common/ProjectLogo';
@@ -39,6 +40,7 @@ interface DeliveryBriefingPageProps {
   onToggleSidebarCollapse?: () => void;
   sidebarCollapsed?: boolean;
   onOpenImportModal?: () => void;
+  onNavigateToWbs?: (projectId?: string) => void;
 }
 
 export const DeliveryBriefingPage: React.FC<DeliveryBriefingPageProps> = ({
@@ -49,6 +51,7 @@ export const DeliveryBriefingPage: React.FC<DeliveryBriefingPageProps> = ({
   onToggleSidebarCollapse,
   sidebarCollapsed,
   onOpenImportModal,
+  onNavigateToWbs,
 }) => {
   // Cadence view: 'daily' | 'weekly' | 'monthly'
   const [cadence, setCadence] = useState<'daily' | 'weekly' | 'monthly'>('weekly');
@@ -224,6 +227,18 @@ ${projects.map(p => `### ${p.accountName} (${p.plan} - $${((Number(p.arr) || 0) 
               Monthly / Q4 Trajectory
             </button>
           </div>
+
+          {/* Deployment WBS & Checklist Button */}
+          {onNavigateToWbs && (
+            <button
+              onClick={() => onNavigateToWbs()}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/80 text-indigo-700 dark:text-indigo-300 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors shadow-2xs cursor-pointer"
+              title="Open Granular Deployment WBS & Checklist Matrix"
+            >
+              <ListChecks className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+              <span>Deployment WBS & Checklist</span>
+            </button>
+          )}
 
           {/* Upload Excel / CSV Bridge */}
           {onOpenImportModal && (
@@ -568,15 +583,30 @@ ${projects.map(p => `### ${p.accountName} (${p.plan} - $${((Number(p.arr) || 0) 
 
                       {/* Action */}
                       <td className="py-3 px-3.5 text-right">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onSelectProject(p);
-                          }}
-                          className="px-2.5 py-1 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-[#131F3B] rounded-lg transition-colors cursor-pointer"
-                        >
-                          Inspect 360° →
-                        </button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          {onNavigateToWbs && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onNavigateToWbs(p.id);
+                              }}
+                              className="px-2 py-1 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#1E2D52] rounded-md transition-colors cursor-pointer flex items-center gap-1"
+                              title="Open WBS Breakdown for this project"
+                            >
+                              <ListChecks className="w-3.5 h-3.5 text-indigo-500" />
+                              <span>WBS</span>
+                            </button>
+                          )}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSelectProject(p);
+                            }}
+                            className="px-2.5 py-1 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-[#131F3B] rounded-lg transition-colors cursor-pointer"
+                          >
+                            Inspect 360° →
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -658,9 +688,23 @@ ${projects.map(p => `### ${p.accountName} (${p.plan} - $${((Number(p.arr) || 0) 
                     <img src={p.deliveryLead?.avatar || DEFAULT_AVATAR} alt={p.deliveryLead?.name || 'Lead'} className="w-5 h-5 rounded-full object-cover" />
                     <span>{p.deliveryLead?.name || 'Unassigned'}</span>
                   </div>
-                  <span className="font-bold text-indigo-600 dark:text-indigo-400">
-                    Inspect →
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {onNavigateToWbs && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onNavigateToWbs(p.id);
+                        }}
+                        className="font-bold text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center gap-1 cursor-pointer"
+                        title="Open WBS Breakdown for this project"
+                      >
+                        <ListChecks className="w-3 h-3 text-indigo-500" /> WBS
+                      </button>
+                    )}
+                    <span className="font-bold text-indigo-600 dark:text-indigo-400">
+                      Inspect →
+                    </span>
+                  </div>
                 </div>
               </div>
             );

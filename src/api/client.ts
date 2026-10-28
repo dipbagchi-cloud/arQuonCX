@@ -1,4 +1,5 @@
-import { DeliveryProject } from '../types';
+import { DeliveryProject, WbsTask, TeamVelocityMetrics } from '../types';
+
 
 const API_BASE = 'http://localhost:3001/api/v1';
 
@@ -196,6 +197,24 @@ export const api = {
       request<{ success: boolean; message: string; metrics: any; projects: DeliveryProject[] }>('/delivery/import', {
         method: 'POST',
         body: JSON.stringify({ projects, mode }),
+      }),
+    getWbs: (projectId: string) =>
+      request<{ success: boolean; projectId: string; tasks: WbsTask[]; progress: number; confidenceScore: number; velocity: TeamVelocityMetrics; prediction: any }>(`/delivery/projects/${projectId}/wbs`),
+    listAllWbs: () =>
+      request<{ success: boolean; tasks: WbsTask[]; totalTasks: number; globalVelocity: TeamVelocityMetrics }>('/delivery/wbs'),
+    createWbsTask: (projectId: string, taskData: Partial<WbsTask>) =>
+      request<{ success: boolean; task: WbsTask; project?: DeliveryProject }>(`/delivery/projects/${projectId}/wbs`, {
+        method: 'POST',
+        body: JSON.stringify(taskData),
+      }),
+    updateWbsTask: (taskId: string, updates: Partial<WbsTask>) =>
+      request<{ success: boolean; task: WbsTask; project?: DeliveryProject }>(`/delivery/wbs/${taskId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(updates),
+      }),
+    deleteWbsTask: (taskId: string) =>
+      request<{ success: boolean; deletedTaskId: string; project?: DeliveryProject }>(`/delivery/wbs/${taskId}`, {
+        method: 'DELETE',
       }),
   },
 };

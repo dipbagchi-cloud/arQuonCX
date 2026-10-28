@@ -15,7 +15,8 @@ import {
   Radio,
   LogOut,
   Lock,
-  Briefcase
+  Briefcase,
+  ListChecks
 } from 'lucide-react';
 import { NavigationTab } from '../../types';
 import { BrandLogo } from '../common/BrandLogo';
@@ -52,6 +53,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'C-Suite Delivery Briefing',
       icon: Briefcase,
       badge: 'Weekly'
+    },
+    {
+      tab: 'deployment-wbs' as NavigationTab,
+      label: 'Deployment WBS & Checklist',
+      icon: ListChecks,
+      badge: 'WBS'
     },
     {
       tab: 'accounts' as NavigationTab,

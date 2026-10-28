@@ -936,6 +936,163 @@ export const MOCK_CHECKLIST_ITEMS: ResourceChecklistItem[] = [
 
 export const MOCK_DELIVERY_PROJECTS: DeliveryProject[] = [
   {
+    id: 'proj-shpl',
+    accountId: 'acc-shpl',
+    accountName: 'SHPL',
+    domain: 'qgpt.saswanehabitats.com',
+    logo: '🏢',
+    plan: 'Enterprise',
+    arr: 1500000,
+    deliveryPhase: 'Phase A: Knowledge Layer',
+    phaseProgress: 100,
+    deliveryHealth: 'on-track',
+    deliveryLead: {
+      name: 'Shubham',
+      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80',
+      title: 'Forward Deployed Engineer'
+    },
+    accountCsm: {
+      name: 'Dip Bagchi',
+      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&auto=format&fit=crop&q=80'
+    },
+    clientSponsor: {
+      name: 'Sarv',
+      role: 'Executive Sponsor',
+      email: 'sarv@saswanehabitats.com'
+    },
+    baselineTargetDate: '2026-11-20',
+    currentEstimatedDate: '2026-11-20',
+    predictedGoLiveDate: '2026-11-20',
+    varianceDays: 0,
+    confidenceScore: 98,
+    arrAtRisk: 0,
+    hoursAllocated: 200,
+    hoursBurned: 225,
+    csuiteActionNeeded: 'To decide implementation plan for Phase B (Autonomous Maintenance Agents)',
+    dailyStandupNote: 'Phase A Knowledge Layer successfully deployed and validated. Ingestion corpus complete.',
+    lastDailyUpdateDate: 'Today, 09:15 AM',
+    weeklyHighlights: {
+      completedThisWeek: [
+        'Saswane engineering schematics corpus indexing verified',
+        'Phase A signoff completed by Sarv'
+      ],
+      plannedNextWeek: [
+        'Present Phase B autonomous agent architecture blueprint to C-Suite'
+      ]
+    },
+    milestones: [
+      { id: 'm1', name: 'Knowledge Corpus Intake', phase: 'Phase 1', targetDate: '2026-10-10', actualDate: '2026-10-09', status: 'completed', owner: 'Shubham' },
+      { id: 'm2', name: 'Semantic Indexing & Vector Search', phase: 'Phase 2', targetDate: '2026-10-20', actualDate: '2026-10-19', status: 'completed', owner: 'Shubham' },
+      { id: 'm3', name: 'SSO & Directory Sync', phase: 'Phase 3', targetDate: '2026-10-22', actualDate: '2026-10-21', status: 'completed', owner: 'Dip Bagchi' },
+      { id: 'm4', name: 'Phase A Knowledge Layer UAT', phase: 'Phase 4', targetDate: '2026-10-26', actualDate: '2026-10-26', status: 'completed', owner: 'Sarv' },
+      { id: 'm5', name: 'Phase B Scoping', phase: 'Phase 5', targetDate: '2026-11-20', status: 'in-progress', owner: 'Shubham' }
+    ]
+  },
+  {
+    id: 'proj-arcelor',
+    accountId: 'acc-arcelor',
+    accountName: 'Arcelor Mittal H&S',
+    domain: 'hsqgptpoc.arcelormittal.com',
+    logo: '🏭',
+    plan: 'Enterprise',
+    arr: 10000,
+    deliveryPhase: 'Phase 1: Health & Safety Audit',
+    phaseProgress: 95,
+    deliveryHealth: 'on-track',
+    deliveryLead: {
+      name: 'Trevor',
+      avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=100&auto=format&fit=crop&q=80',
+      title: 'Forward Deployed Engineer'
+    },
+    accountCsm: {
+      name: 'Dip Bagchi',
+      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&auto=format&fit=crop&q=80'
+    },
+    clientSponsor: {
+      name: 'Gustavo',
+      role: 'Head of Health & Safety',
+      email: 'gustavo@arcelormittal.com'
+    },
+    baselineTargetDate: '2026-12-05',
+    currentEstimatedDate: '2026-12-05',
+    predictedGoLiveDate: '2026-12-03',
+    varianceDays: -2,
+    confidenceScore: 94,
+    arrAtRisk: 0,
+    hoursAllocated: 240,
+    hoursBurned: 250,
+    dailyStandupNote: 'H&S audit workflows validated with site managers. Final shift supervisor feedback pending.',
+    lastDailyUpdateDate: 'Today, 11:30 AM',
+    weeklyHighlights: {
+      completedThisWeek: [
+        'Completed safety hazard detection workflow tagging (2,400 SOPs)',
+        'Delivered pilot risk analytics dashboard to Gustavo'
+      ],
+      plannedNextWeek: [
+        'Plant-wide mobile telemetry pilot validation'
+      ]
+    },
+    milestones: [
+      { id: 'm1', name: 'H&S Audit Manual Ingestion', phase: 'Phase 1', targetDate: '2026-10-15', actualDate: '2026-10-14', status: 'completed', owner: 'Trevor' },
+      { id: 'm2', name: 'Hazard Detection Workflow Tagging', phase: 'Phase 2', targetDate: '2026-10-24', actualDate: '2026-10-24', status: 'completed', owner: 'Trevor' },
+      { id: 'm3', name: 'Site Supervisor Pilot', phase: 'Phase 3', targetDate: '2026-10-30', status: 'in-progress', owner: 'Dip Bagchi' },
+      { id: 'm4', name: 'Final Safety Audit Signoff', phase: 'Phase 4', targetDate: '2026-12-05', status: 'pending', owner: 'Gustavo' }
+    ]
+  },
+  {
+    id: 'proj-indorama',
+    accountId: 'acc-indorama',
+    accountName: 'Indorama Corp',
+    domain: 'qgpt.indorama.com',
+    logo: '🌐',
+    plan: 'Scale',
+    arr: 0,
+    deliveryPhase: 'Phase 1: Finance Ops',
+    phaseProgress: 80,
+    deliveryHealth: 'at-risk',
+    deliveryLead: {
+      name: 'Dip Bagchi',
+      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&auto=format&fit=crop&q=80',
+      title: 'Forward Deployed Engineer'
+    },
+    accountCsm: {
+      name: 'Dip Bagchi',
+      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&auto=format&fit=crop&q=80'
+    },
+    clientSponsor: {
+      name: 'Rohit',
+      role: 'VP Finance Operations',
+      email: 'rohit@indorama.com'
+    },
+    baselineTargetDate: '2026-11-12',
+    currentEstimatedDate: '2026-11-20',
+    predictedGoLiveDate: '2026-11-28',
+    varianceDays: 16,
+    confidenceScore: 48,
+    arrAtRisk: 0,
+    hoursAllocated: 200,
+    hoursBurned: 500,
+    currentBlocker: 'The IRC instance is not rendering due to which arQuon testing team is unable to test it. Amartya is checking the infra for IRC.',
+    csuiteActionNeeded: 'Needed Direction for the product team to ascertain the priority of the initiative.',
+    dailyStandupNote: 'IRC infra issue escalated to Amartya. Waiting on test instance recovery to resume testing.',
+    lastDailyUpdateDate: 'Today, 10:45 AM',
+    weeklyHighlights: {
+      completedThisWeek: [
+        'IRC ledger data ingestion connector built'
+      ],
+      plannedNextWeek: [
+        'Resolve IRC instance rendering defect with infra team',
+        'Product team prioritization meeting with C-Suite'
+      ]
+    },
+    milestones: [
+      { id: 'm1', name: 'IRC Ledger Connector', phase: 'Phase 1', targetDate: '2026-10-12', actualDate: '2026-10-11', status: 'completed', owner: 'Dip Bagchi' },
+      { id: 'm2', name: 'IRC Rendering Infrastructure', phase: 'Phase 1', targetDate: '2026-10-24', status: 'blocked', owner: 'Dip Bagchi' },
+      { id: 'm3', name: 'Product Prioritization Review', phase: 'Phase 1', targetDate: '2026-10-29', status: 'blocked', owner: 'Elena Rostova' },
+      { id: 'm4', name: 'Invoice Reconciliation AI Pilot', phase: 'Phase 2', targetDate: '2026-11-12', status: 'pending', owner: 'Shubham' }
+    ]
+  },
+  {
     id: 'proj-1',
     accountId: 'acc-1',
     accountName: 'Acme Cloud Dynamics',
@@ -1258,4 +1415,6 @@ export const MOCK_DELIVERY_PROJECTS: DeliveryProject[] = [
     ]
   }
 ];
+
+export { MOCK_WBS_TASKS, MOCK_WBS_ASSIGNEES, MOCK_WBS_ASSIGNEE_LIST } from './mockWbsData';
 

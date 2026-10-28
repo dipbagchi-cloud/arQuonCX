@@ -14,7 +14,8 @@ import {
   Briefcase,
   Flame,
   ArrowRight,
-  Layers
+  Layers,
+  ListChecks
 } from 'lucide-react';
 import { DeliveryProject, DeliveryMilestoneItem } from '../../types';
 import { ProjectLogo } from '../common/ProjectLogo';
@@ -27,6 +28,7 @@ interface DeliveryDetailDrawerProps {
   onClose: () => void;
   onUpdateProject: (id: string, updates: Partial<DeliveryProject>) => void;
   onPredict: (id: string) => void;
+  onNavigateToWbs?: (projectId: string) => void;
 }
 
 export const DeliveryDetailDrawer: React.FC<DeliveryDetailDrawerProps> = ({
@@ -35,6 +37,7 @@ export const DeliveryDetailDrawer: React.FC<DeliveryDetailDrawerProps> = ({
   onClose,
   onUpdateProject,
   onPredict,
+  onNavigateToWbs,
 }) => {
   if (!isOpen || !project) return null;
 
@@ -284,7 +287,21 @@ export const DeliveryDetailDrawer: React.FC<DeliveryDetailDrawerProps> = ({
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
                 <Layers className="w-3.5 h-3.5" /> Delivery Milestones Checklist ({milestones.filter(m => m.status === 'completed').length} / {milestones.length})
               </h3>
-              <span className="text-[10px] text-slate-400">Click to toggle status</span>
+              {onNavigateToWbs ? (
+                <button
+                  onClick={() => {
+                    onClose();
+                    onNavigateToWbs(project.id);
+                  }}
+                  className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 flex items-center gap-1 cursor-pointer bg-indigo-50 dark:bg-indigo-950/40 px-2.5 py-1 rounded-md border border-indigo-200 dark:border-indigo-800/60 transition-colors"
+                  title="Open full interactive WBS Breakdown & Checklist"
+                >
+                  <ListChecks className="w-3.5 h-3.5" />
+                  <span>Open Full WBS & Tasks →</span>
+                </button>
+              ) : (
+                <span className="text-[10px] text-slate-400">Click to toggle status</span>
+              )}
             </div>
 
             <div className="space-y-1.5">

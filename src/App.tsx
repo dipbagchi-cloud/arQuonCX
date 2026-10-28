@@ -12,6 +12,7 @@ import { AnalyticsPage } from './components/pages/AnalyticsPage';
 import { ResourceCenterPage } from './components/pages/ResourceCenterPage';
 import { IntegrationsPage } from './components/pages/IntegrationsPage';
 import { DeliveryBriefingPage } from './components/pages/DeliveryBriefingPage';
+import { DeploymentWBSPage } from './components/pages/DeploymentWBSPage';
 
 import { LandingPage } from './components/pages/LandingPage';
 import { LoginPage } from './components/pages/LoginPage';
@@ -37,9 +38,11 @@ import {
   MOCK_RETENTION_COHORTS, 
   MOCK_INTEGRATIONS, 
   MOCK_RESOURCE_MODULES,
-  MOCK_DELIVERY_PROJECTS
+  MOCK_DELIVERY_PROJECTS,
+  MOCK_WBS_TASKS
 } from './data/mockData';
-import { NavigationTab, Account, Flow, Survey, FeedbackItem, ResourceModule, Integration, DeliveryProject } from './types';
+import { NavigationTab, Account, Flow, Survey, FeedbackItem, ResourceModule, Integration, DeliveryProject, WbsTask } from './types';
+import { calculateWbsProgress, calculateConfidenceScore, calculatePredictedGoLive } from './utils/wbsMetrics';
 import { api } from './api/client';
 
 type AppView = 'landing' | 'login' | 'app' | 'privacy' | 'terms' | 'security';
@@ -89,12 +92,14 @@ export function App() {
   const [modules, setModules] = useState<ResourceModule[]>(MOCK_RESOURCE_MODULES);
   const [integrations, setIntegrations] = useState<Integration[]>(MOCK_INTEGRATIONS);
   const [deliveryProjects, setDeliveryProjects] = useState<DeliveryProject[]>(MOCK_DELIVERY_PROJECTS);
+  const [wbsTasks, setWbsTasks] = useState<WbsTask[]>(MOCK_WBS_TASKS);
+  const [selectedWbsProjectId, setSelectedWbsProjectId] = useState<string | undefined>(undefined);
 
   // Fetch live backend data from SQLite/PostgreSQL
   useEffect(() => {
     async function fetchLiveData() {
       try {
-        const [accRes, flowRes, survRes, fbRes, usrRes, igRes, delivRes] = await Promise.allSettled([
+        const [accRes, flowRes, survRes, fbRes, usrRes, igRes, delivRes, wbsRes] = await Promise.allSettled([
           api.accounts.list(),
           api.flows.list(),
           api.surveys.list(),
@@ -102,6 +107,7 @@ export function App() {
           api.users.list(),
           api.integrations.list(),
           api.delivery.list(),
+          api.delivery.listAllWbs(),
         ]);
 
         if (accRes.status === 'fulfilled' && accRes.value.accounts?.length) {
@@ -124,6 +130,9 @@ export function App() {
         }
         if (delivRes.status === 'fulfilled' && delivRes.value.projects?.length) {
           setDeliveryProjects(delivRes.value.projects);
+        }
+        if (wbsRes.status === 'fulfilled' && wbsRes.value?.tasks?.length) {
+          setWbsTasks(wbsRes.value.tasks);
         }
       } catch (e) {
         console.warn('Backend API sync notice: Using pre-seeded telemetry data.', e);
@@ -227,6 +236,129 @@ export function App() {
         }
         return p;
       }));
+    }
+  };
+
+  // Navigation helper for WBS
+  const handleNavigateToWbs = (projectId?: string) => {
+    setSelectedWbsProjectId(projectId);
+    setCurrentTab('deployment-wbs');
+  };
+
+  // Recalculate parent project metrics whenever tasks change
+  const syncParentProjectMetrics = (projectId: string, currentTasks: WbsTask[]) => {
+    const pTasks = currentTasks.filter(t => t.projectId === projectId);
+    const newProgress = calculateWbsProgress(pTasks);
+    setDeliveryProjects(prev => prev.map(p => {
+      if (p.id === projectId) {
+        const newConfidence = calculateConfidenceScore(pTasks, p);
+        const forecast = calculatePredictedGoLive(p.baselineTargetDate, newProgress, newConfidence);
+        const newHealth = newConfidence < 50 ? 'critical' : newConfidence < 75 ? 'at-risk' : 'on-track';
+        return {
+          ...p,
+          phaseProgress: newProgress,
+          confidenceScore: newConfidence,
+          predictedGoLiveDate: forecast.predictedDate,
+          varianceDays: forecast.varianceDays,
+          deliveryHealth: newHealth,
+        };
+      }
+      return p;
+    }));
+  };
+
+  // Handler: update WBS task
+  const handleUpdateWbsTask = async (taskId: string, updates: Partial<WbsTask>) => {
+    let targetProjectId: string | undefined;
+    let nextTasks: WbsTask[] = [];
+
+    setWbsTasks(prev => {
+      nextTasks = prev.map(t => {
+        if (t.id === taskId) {
+          targetProjectId = t.projectId;
+          return { ...t, ...updates };
+        }
+        return t;
+      });
+      return nextTasks;
+    });
+
+    if (targetProjectId) {
+      syncParentProjectMetrics(targetProjectId, nextTasks);
+    }
+
+    try {
+      await api.delivery.updateWbsTask(taskId, updates);
+    } catch (err) {
+      console.warn('API update WBS task notice:', err);
+    }
+  };
+
+  // Handler: create WBS task
+  const handleCreateWbsTask = async (taskData: Partial<WbsTask>) => {
+    const defaultProj = deliveryProjects.find(p => p.id === taskData.projectId) || deliveryProjects[0];
+    const targetProjectId = taskData.projectId || defaultProj?.id || 'proj-shpl';
+    const newTask: WbsTask = {
+      id: taskData.id || `wbs-${Date.now()}`,
+      projectId: targetProjectId,
+      phase: taskData.phase || 'Phase 1: Foundation',
+      workPackage: taskData.workPackage || 'Technical Setup',
+      taskName: taskData.taskName || 'New Deliverable',
+      assignedUser: taskData.assignedUser || { 
+        id: 'usr-dip', 
+        name: 'Dip Bagchi', 
+        role: 'Director of Customer Success', 
+        avatar: '', 
+        email: 'dip@arquoncx.com' 
+      },
+      estimatedHours: taskData.estimatedHours || 8,
+      actualHours: taskData.actualHours || 0,
+      plannedStart: taskData.plannedStart || new Date().toISOString().split('T')[0],
+      plannedFinish: taskData.plannedFinish || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
+      status: taskData.status || 'not-started',
+      progress: taskData.progress || 0,
+      priority: taskData.priority || 'medium',
+      isMilestone: taskData.isMilestone ?? false,
+      isCriticalPath: taskData.isCriticalPath ?? false,
+      blockerNote: taskData.blockerNote,
+      lastUpdated: new Date().toISOString().split('T')[0],
+    };
+
+    let nextTasks: WbsTask[] = [];
+    setWbsTasks(prev => {
+      nextTasks = [newTask, ...prev];
+      return nextTasks;
+    });
+
+    syncParentProjectMetrics(newTask.projectId, nextTasks);
+
+    try {
+      await api.delivery.createWbsTask(newTask.projectId, newTask);
+    } catch (err) {
+      console.warn('API create WBS task notice:', err);
+    }
+  };
+
+  // Handler: delete WBS task
+  const handleDeleteWbsTask = async (taskId: string) => {
+    let targetProjectId: string | undefined;
+    let nextTasks: WbsTask[] = [];
+
+    setWbsTasks(prev => {
+      const found = prev.find(t => t.id === taskId);
+      targetProjectId = found?.projectId;
+      nextTasks = prev.filter(t => t.id !== taskId);
+      return nextTasks;
+    });
+
+    if (targetProjectId) {
+      syncParentProjectMetrics(targetProjectId, nextTasks);
+    }
+
+    try {
+      await api.delivery.deleteWbsTask(taskId);
+    } catch (err) {
+      console.warn('API delete WBS task notice:', err);
     }
   };
 
@@ -428,6 +560,19 @@ export function App() {
                 onToggleSidebarCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
                 sidebarCollapsed={sidebarCollapsed}
                 onOpenImportModal={() => setIsDeliveryImportOpen(true)}
+                onNavigateToWbs={handleNavigateToWbs}
+              />
+            )}
+
+            {currentTab === 'deployment-wbs' && (
+              <DeploymentWBSPage
+                projects={deliveryProjects}
+                wbsTasks={wbsTasks}
+                onUpdateTask={handleUpdateWbsTask}
+                onCreateTask={handleCreateWbsTask}
+                onDeleteTask={handleDeleteWbsTask}
+                onNavigateToBriefing={() => setCurrentTab('delivery-briefing')}
+                initialProjectId={selectedWbsProjectId}
               />
             )}
 
@@ -512,6 +657,7 @@ export function App() {
         onClose={() => setIsDeliveryDrawerOpen(false)}
         onUpdateProject={handleUpdateDeliveryProject}
         onPredict={handlePredictDeliveryProject}
+        onNavigateToWbs={handleNavigateToWbs}
       />
 
       {/* Flow Builder & In-App Simulator Modal */}

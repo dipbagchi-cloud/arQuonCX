@@ -11,6 +11,7 @@ import * as Analytics from '../controllers/analyticsController';
 import * as Integrations from '../controllers/integrationsController';
 import * as Telemetry from '../controllers/telemetryController';
 import * as Delivery from '../controllers/deliveryController';
+import * as Wbs from '../controllers/wbsController';
 
 const router = Router();
 
@@ -75,5 +76,12 @@ router.get('/delivery/projects', requirePermission('account:read'), Delivery.get
 router.patch('/delivery/projects/:id', requirePermission('account:write'), Delivery.updateDeliveryProject);
 router.post('/delivery/projects/:id/predict', requirePermission('account:read'), Delivery.predictDelivery);
 router.post('/delivery/import', requirePermission('account:write'), Delivery.importDeliveryProjects);
+
+// Deployment Checklist & Work Breakdown Structure (WBS)
+router.get('/delivery/wbs', requirePermission('account:read'), Wbs.getAllWbsTasks);
+router.get('/delivery/projects/:id/wbs', requirePermission('account:read'), Wbs.getProjectWbs);
+router.post('/delivery/projects/:id/wbs', requirePermission('account:write'), Wbs.createWbsTask);
+router.patch('/delivery/wbs/:taskId', requirePermission('account:write'), Wbs.updateWbsTask);
+router.delete('/delivery/wbs/:taskId', requirePermission('account:write'), Wbs.deleteWbsTask);
 
 export default router;

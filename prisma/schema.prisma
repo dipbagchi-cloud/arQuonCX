@@ -1,0 +1,265 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// -------------------------------------------------------------
+// Core Tenant & Internal Staff (RBAC)
+// -------------------------------------------------------------
+
+model Organization {
+  id          String        @id @default(cuid())
+  name        String
+  slug        String        @unique
+  plan        String        @default("Enterprise")
+  domain      String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  users       User[]
+  accounts    Account[]
+  flows       Flow[]
+  surveys     Survey[]
+  integrations Integration[]
+  apiKeys     ApiKey[]
+}
+
+model User {
+  id             String        @id @default(cuid())
+  email          String        @unique
+  passwordHash   String
+  name           String
+  avatar         String
+  role           String        @default("CSM") // SUPER_ADMIN, CS_OPS, CSM, PRODUCT_GROWTH, VIEWER
+  title          String
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  auditLogs      AuditLog[]
+}
+
+// -------------------------------------------------------------
+// Customer Success CRM: Accounts, Contacts, Milestones & Logs
+// -------------------------------------------------------------
+
+model Account {
+  id                 String             @id
+  name               String
+  domain             String
+  logo               String
+  plan               String             // Enterprise, Scale, Starter
+  mrr                Float
+  arr                Float
+  csmName            String
+  csmAvatar          String
+  healthScore        Int
+  healthTier         String             // healthy, neutral, at-risk
+  npsScore           Int
+  seatsTotal         Int
+  seatsUsed          Int
+  renewalDate        String
+  daysToRenewal      Int
+  tags               String             // JSON string array
+  usageScore         Int
+  supportScore       Int
+  championScore      Int
+  lastActiveDaysAgo  Int
+  onboardingProgress Int
+  notes              String
+  organizationId     String
+  organization       Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  contacts           AccountContact[]
+  milestones         AccountMilestone[]
+  touchpoints        TouchpointLog[]
+  endUsers           EndUser[]
+}
+
+model AccountContact {
+  id          String   @id @default(cuid())
+  name        String
+  role        String
+  email       String
+  isChampion  Boolean  @default(false)
+  accountId   String
+  account     Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+}
+
+model AccountMilestone {
+  id          String   @id @default(cuid())
+  title       String
+  completed   Boolean  @default(false)
+  date        String?
+  accountId   String
+  account     Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+}
+
+model TouchpointLog {
+  id             String   @id @default(cuid())
+  note           String
+  touchpointType String   @default("Check-in")
+  csmName        String
+  accountId      String
+  account        Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+}
+
+model EndUser {
+  id                   String   @id
+  name                 String
+  email                String
+  avatar               String
+  accountId            String
+  account              Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  role                 String
+  healthScore          Int
+  healthTier           String
+  lastSeen             String
+  totalSessions        Int
+  featureAdoptionCount Int
+  segmentTags          String   // JSON string array
+  joinedDate           String
+  plan                 String
+  createdAt            DateTime @default(now())
+}
+
+// -------------------------------------------------------------
+// In-App Onboarding Experiences & Flows
+// -------------------------------------------------------------
+
+model Flow {
+  id             String       @id
+  name           String
+  type           String       // modal, slideout, tooltip, checklist, banner
+  status         String       // live, paused, draft
+  targetAudience String
+  triggerEvent   String
+  impressions    Int          @default(0)
+  completedCount Int          @default(0)
+  completionRate Int          @default(0)
+  dropOffRate    Int          @default(0)
+  goalName       String
+  goalConversion Int          @default(0)
+  lastEdited     String
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  steps          FlowStep[]
+}
+
+model FlowStep {
+  id            String   @id @default(cuid())
+  stepNumber    Int
+  title         String
+  content       String
+  targetElement String?
+  buttonText    String
+  type          String
+  flowId        String
+  flow          Flow     @relation(fields: [flowId], references: [id], onDelete: Cascade)
+}
+
+// -------------------------------------------------------------
+// Voice of Customer: Surveys, NPS & Qualitative Feedback
+// -------------------------------------------------------------
+
+model Survey {
+  id              String         @id
+  title           String
+  type            String         // nps, csat, ces, micro
+  responsesCount  Int            @default(0)
+  score           String
+  scoreNumeric    Int
+  status          String         // active, scheduled, ended
+  dateCreated     String
+  targetSegment   String
+  organizationId  String
+  organization    Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  feedback        FeedbackItem[]
+}
+
+model FeedbackItem {
+  id          String   @id
+  userName    String
+  userAvatar  String
+  accountName String
+  score       Int
+  category    String   // promoter, passive, detractor
+  tags        String   // JSON string array
+  comment     String
+  sentiment   String   // positive, neutral, negative
+  csmAssigned String
+  status      String   // open, addressed
+  date        String
+  surveyId    String?
+  survey      Survey?  @relation(fields: [surveyId], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+}
+
+// -------------------------------------------------------------
+// Analytics: Feature Tagging
+// -------------------------------------------------------------
+
+model FeatureTag {
+  id                 String   @id
+  name               String
+  selector           String
+  section            String
+  monthlyClicks      Int
+  uniqueUsers        Int
+  adoptionPercentage Int
+  trend              Int
+  createdAt          DateTime @default(now())
+}
+
+// -------------------------------------------------------------
+// Integrations, API Keys & Audit Governance
+// -------------------------------------------------------------
+
+model Integration {
+  id             String       @id
+  name           String
+  category       String       // CRM, Analytics, Communication, Support, Data
+  icon           String
+  description    String
+  status         String       // connected, disconnected
+  lastSync       String?
+  eventCount     String?
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model ApiKey {
+  id             String       @id @default(cuid())
+  name           String
+  key            String       @unique
+  environment    String       // production, staging
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+}
+
+model AuditLog {
+  id           String    @id @default(cuid())
+  userId       String?
+  user         User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action       String
+  resourceType String
+  resourceId   String?
+  details      String?
+  ipAddress    String?
+  createdAt    DateTime  @default(now())
+}

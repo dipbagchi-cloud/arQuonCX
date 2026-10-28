@@ -1,0 +1,148 @@
+@import "tailwindcss";
+
+/* Exact fonts from Userpilot.com: Garnett & Eudoxus Sans */
+@font-face {
+  font-family: "Garnett";
+  font-display: swap;
+  src: url("https://userpilot.com/wp-content/themes/userpilot-inc/fonts/Garnett-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Garnett";
+  font-display: swap;
+  src: url("https://userpilot.com/wp-content/themes/userpilot-inc/fonts/Garnett-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Garnett";
+  font-display: swap;
+  src: url("https://userpilot.com/wp-content/themes/userpilot-inc/fonts/Garnett-Semibold.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Eudoxus Sans";
+  font-display: swap;
+  src: url("https://userpilot.com/wp-content/themes/userpilot-inc/fonts/EudoxusSans-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Eudoxus Sans";
+  font-display: swap;
+  src: url("https://userpilot.com/wp-content/themes/userpilot-inc/fonts/EudoxusSans-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+}
+
+@theme {
+  --font-sans: 'Garnett', 'Eudoxus Sans', 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-display: 'Garnett', 'Plus Jakarta Sans', sans-serif;
+}
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    --primary: 91 76 253; /* Userpilot Royal Indigo #5B4CFD */
+    --primary-hover: 79 63 245;
+  }
+
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased font-sans selection:bg-indigo-600 selection:text-white transition-colors duration-150;
+    margin: 0;
+    min-height: 100vh;
+    font-family: 'Garnett', 'Eudoxus Sans', 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    letter-spacing: -0.015em;
+    word-spacing: -0.2px;
+  }
+
+  /* Dark Blue Theme */
+  html.dark body {
+    @apply bg-[#070B19] text-slate-100 selection:bg-indigo-500 selection:text-white;
+  }
+
+  #root {
+    min-height: 100vh;
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    border: none;
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+/* Custom scrollbars with navy dark blue support */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+html.dark ::-webkit-scrollbar-thumb {
+  background: #1e293b;
+}
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
+
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.88; transform: scale(1.02); }
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Userpilot-style Smooth Moving Carousel Marquees */
+@keyframes marquee {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(-50%); }
+}
+
+@keyframes marquee-reverse {
+  0% { transform: translateX(-50%); }
+  100% { transform: translateX(0%); }
+}
+
+.animate-marquee {
+  display: flex;
+  width: max-content;
+  animation: marquee 30s linear infinite;
+}
+
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
+.animate-marquee-reverse {
+  display: flex;
+  width: max-content;
+  animation: marquee-reverse 35s linear infinite;
+}
+
+.animate-marquee-reverse:hover {
+  animation-play-state: paused;
+}
+
+@keyframes progress-fill {
+  from { width: 0%; }
+  to { width: 100%; }
+}
+
+.animate-progress-fill {
+  animation: progress-fill 5s linear forwards;
+}

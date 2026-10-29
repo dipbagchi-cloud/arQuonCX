@@ -183,45 +183,78 @@ export function calculatePredictedGoLive(
 }
 
 /**
- * Calculates consolidated Burndown and Burnup series for sprint & project delivery tracking.
+ * Calculates project-specific or consolidated Burndown and Burnup series for sprint & project delivery tracking.
  */
-export function calculateBurnChartSeries(tasks: WbsTask[], totalAllocatedHours?: number): BurnChartPoint[] {
-  const totalEffort = totalAllocatedHours || Math.max(80, tasks.reduce((sum, t) => sum + (Number(t.estimatedHours) || 8), 0));
-  const completedEffort = tasks.reduce((sum, t) => {
+export function calculateBurnChartSeries(
+  tasks: WbsTask[],
+  totalAllocatedHours?: number,
+  actualBurnedHours?: number,
+  baselineDate?: string
+): BurnChartPoint[] {
+  const taskEffortSum = tasks.reduce((sum, t) => sum + (Number(t.estimatedHours) || 8), 0);
+  const totalEffort = Math.max(40, totalAllocatedHours || taskEffortSum || 160);
+  
+  // Calculate earned hours completed from tasks
+  const earnedTaskHours = tasks.reduce((sum, t) => {
     const hours = Number(t.estimatedHours) || 8;
     const pct = t.status === 'completed' ? 100 : Number(t.progress) || 0;
     return sum + (hours * (pct / 100));
   }, 0);
 
-  const progressRatio = totalEffort > 0 ? completedEffort / totalEffort : 0;
+  // If actualBurnedHours is provided from project record, use it for fidelity
+  const burned = actualBurnedHours !== undefined && actualBurnedHours > 0 
+    ? actualBurnedHours 
+    : tasks.reduce((s, t) => s + (t.actualHours || 0), 0);
+  
+  // Progress fraction (0 to 1)
+  const is100Percent = tasks.length > 0 && tasks.every(t => t.status === 'completed');
+  const progressRatio = is100Percent ? 1 : totalEffort > 0 ? Math.min(0.99, earnedTaskHours / totalEffort) : 0;
+  
   const intervals = 8;
-  const currentInterval = Math.min(intervals, Math.max(1, Math.round(progressRatio * intervals)));
+  const currentInterval = is100Percent ? intervals : Math.min(intervals - 1, Math.max(1, Math.round(progressRatio * (intervals - 1))));
 
   const points: BurnChartPoint[] = [];
+
+  // Parse baseline date to compute real milestone dates
+  const baseTarget = baselineDate ? new Date(baselineDate) : new Date(Date.now() + 20 * 86400000);
+  const startDate = new Date(baseTarget.getTime() - 40 * 86400000);
 
   for (let i = 0; i <= intervals; i++) {
     const fraction = i / intervals;
     const idealBurn = Math.round(totalEffort * (1 - fraction));
-    const scopeAtStep = i >= 3 && tasks.length > 8 ? Math.round(totalEffort * 1.05) : totalEffort;
+    
+    // Scope line: check if there's scope expansion (e.g. if burned > allocated)
+    const scopeExpansion = burned > totalEffort ? (burned - totalEffort) : (totalEffort * 0.05);
+    const scopeAtStep = i >= 3 ? Math.round(totalEffort + (scopeExpansion * (i / intervals))) : totalEffort;
 
     let actualBurn: number;
     let completedScope: number;
 
     if (i <= currentInterval) {
-      const stepProg = i / currentInterval;
-      completedScope = Math.round(completedEffort * stepProg);
+      const stepProg = currentInterval > 0 ? i / currentInterval : 0;
+      completedScope = Math.round(earnedTaskHours * stepProg);
       actualBurn = Math.max(0, Math.round(scopeAtStep - completedScope));
+      if (is100Percent && i === intervals) {
+        actualBurn = 0;
+        completedScope = scopeAtStep;
+      }
     } else {
-      const projectedStepCompleted = Math.min(
-        scopeAtStep,
-        Math.round(completedEffort + ((scopeAtStep - completedEffort) * ((i - currentInterval) / (intervals - currentInterval))))
-      );
-      completedScope = projectedStepCompleted;
-      actualBurn = Math.max(0, Math.round(scopeAtStep - projectedStepCompleted));
+      // Future projection
+      const remainingToComplete = scopeAtStep - earnedTaskHours;
+      const stepProg = (i - currentInterval) / (intervals - currentInterval);
+      completedScope = Math.min(scopeAtStep, Math.round(earnedTaskHours + (remainingToComplete * stepProg)));
+      actualBurn = Math.max(0, Math.round(scopeAtStep - completedScope));
     }
 
+    // Generate date label
+    const pointDate = new Date(startDate.getTime() + (baseTarget.getTime() - startDate.getTime()) * fraction);
+    const dateFormatted = !isNaN(pointDate.getTime())
+      ? pointDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      : `Day ${i * 5}`;
+    const dayLabel = i === 0 ? 'Start' : i === intervals ? `Target (${dateFormatted})` : dateFormatted;
+
     points.push({
-      dayLabel: i === 0 ? 'Day 0' : i === intervals ? 'Target Release' : `Day ${i * 2}`,
+      dayLabel,
       idealBurnRemaining: idealBurn,
       actualBurnRemaining: actualBurn,
       totalScope: scopeAtStep,

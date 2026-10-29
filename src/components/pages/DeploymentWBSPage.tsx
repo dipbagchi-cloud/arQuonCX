@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Layers, 
   CheckSquare, 
@@ -22,7 +22,8 @@ import {
   ShieldCheck,
   FileCheck2,
   GitCommit,
-  Check
+  Check,
+  GripVertical
 } from 'lucide-react';
 import { WbsTask, DeliveryProject, WbsTaskStatus, WbsTaskPriority } from '../../types';
 import { calculateWbsProgress, calculateConfidenceScore, calculateTeamVelocity, calculatePredictedGoLive, calculateBurnChartSeries } from '../../utils/wbsMetrics';
@@ -110,6 +111,136 @@ export const DeploymentWBSPage: React.FC<DeploymentWBSPageProps> = ({
       calculatedVelocity
     );
   }, [currentProject, calculatedProgress, calculatedConfidence, calculatedVelocity]);
+
+  // Kanban Drag and Drop state
+  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+  const [dragOverColumn, setDragOverColumn] = useState<WbsTaskStatus | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+
+  // Burndown specific project selection state (defaults to initialProjectId or first project or 'all')
+  const [activeBurnProjectId, setActiveBurnProjectId] = useState<string>(
+    initialProjectId && initialProjectId !== 'all' ? initialProjectId : (projects[0]?.id || 'all')
+  );
+
+  // Keep activeBurnProjectId in sync when top-level project selector changes
+  useEffect(() => {
+    if (selectedProjectId !== 'all') {
+      setActiveBurnProjectId(selectedProjectId);
+    }
+  }, [selectedProjectId]);
+
+  // Burndown active project computation
+  const activeBurnProject = useMemo(() => {
+    if (activeBurnProjectId === 'all') return null;
+    return projects.find(p => p.id === activeBurnProjectId) || null;
+  }, [projects, activeBurnProjectId]);
+
+  const activeBurnTasks = useMemo(() => {
+    if (!activeBurnProject) return tasks;
+    return tasks.filter(t => t.projectId === activeBurnProject.id);
+  }, [tasks, activeBurnProject]);
+
+  const activeBurnAllocated = useMemo(() => {
+    if (activeBurnProject) return activeBurnProject.hoursAllocated || 200;
+    return projects.reduce((s, p) => s + (p.hoursAllocated || 200), 0) || 640;
+  }, [activeBurnProject, projects]);
+
+  const activeBurnBurned = useMemo(() => {
+    if (activeBurnProject) {
+      return activeBurnProject.hoursBurned !== undefined
+        ? activeBurnProject.hoursBurned
+        : activeBurnTasks.reduce((s, t) => s + (t.actualHours || 0), 0);
+    }
+    return projects.reduce((s, p) => s + (p.hoursBurned !== undefined ? p.hoursBurned : 0), 0) ||
+      tasks.reduce((s, t) => s + (t.actualHours || 0), 0);
+  }, [activeBurnProject, projects, activeBurnTasks, tasks]);
+
+  const activeBurnTargetDate = useMemo(() => {
+    return activeBurnProject?.baselineTargetDate || '2026-11-20';
+  }, [activeBurnProject]);
+
+  const activeBurnProgress = useMemo(() => {
+    if (activeBurnProject) {
+      return activeBurnProject.phaseProgress !== undefined ? activeBurnProject.phaseProgress : calculateWbsProgress(activeBurnTasks);
+    }
+    return calculateWbsProgress(tasks);
+  }, [activeBurnProject, activeBurnTasks, tasks]);
+
+  const activeBurnChartData = useMemo(() => {
+    return calculateBurnChartSeries(
+      activeBurnTasks,
+      activeBurnAllocated,
+      activeBurnBurned,
+      activeBurnTargetDate
+    );
+  }, [activeBurnTasks, activeBurnAllocated, activeBurnBurned, activeBurnTargetDate]);
+
+  const maxBurnScale = useMemo(() => {
+    const values = [
+      ...activeBurnChartData.flatMap(d => [d.idealBurnRemaining, d.actualBurnRemaining, d.totalScope, d.completedScope]),
+      activeBurnAllocated,
+      activeBurnBurned,
+      60
+    ];
+    const rawMax = Math.max(...values);
+    return Math.max(60, Math.ceil((rawMax * 1.08) / 20) * 20);
+  }, [activeBurnChartData, activeBurnAllocated, activeBurnBurned]);
+
+  // Kanban Drag and Drop Handlers
+  const handleDragStart = (e: React.DragEvent, taskId: string) => {
+    e.dataTransfer.setData('text/plain', taskId);
+    e.dataTransfer.effectAllowed = 'move';
+    setDraggedTaskId(taskId);
+    setIsDragging(true);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedTaskId(null);
+    setDragOverColumn(null);
+    setTimeout(() => setIsDragging(false), 80);
+  };
+
+  const handleDragOver = (e: React.DragEvent, statusKey: WbsTaskStatus) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverColumn !== statusKey) {
+      setDragOverColumn(statusKey);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent, statusKey: WbsTaskStatus) => {
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+    if (dragOverColumn === statusKey) {
+      setDragOverColumn(null);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent, targetStatus: WbsTaskStatus) => {
+    e.preventDefault();
+    setDragOverColumn(null);
+    const taskId = e.dataTransfer.getData('text/plain') || draggedTaskId;
+    setDraggedTaskId(null);
+    setTimeout(() => setIsDragging(false), 80);
+
+    if (!taskId) return;
+
+    const taskToMove = tasks.find(t => t.id === taskId);
+    if (!taskToMove || taskToMove.status === targetStatus) return;
+
+    let newProgress = taskToMove.progress;
+    if (targetStatus === 'completed') newProgress = 100;
+    else if (targetStatus === 'not-started') newProgress = 0;
+    else if (targetStatus === 'in-progress' && (taskToMove.progress === 0 || taskToMove.progress === 100)) newProgress = 25;
+    else if (targetStatus === 'in-review' && taskToMove.progress < 80) newProgress = 80;
+
+    const updates: Partial<WbsTask> = {
+      status: targetStatus,
+      progress: newProgress,
+      actualFinish: targetStatus === 'completed' ? new Date().toISOString().split('T')[0] : taskToMove.actualFinish
+    };
+
+    onUpdateTask(taskId, updates);
+  };
 
   const burnChartData = useMemo(() => {
     return calculateBurnChartSeries(filteredTasks, currentProject?.hoursAllocated || 200);
@@ -918,86 +1049,147 @@ export const DeploymentWBSPage: React.FC<DeploymentWBSPageProps> = ({
       )}
 
       {/* ======================================================== */}
-      {/* VIEW 4: KANBAN SPRINT BOARD                              */}
+      {/* ======================================================== */}
+      {/* VIEW 4: KANBAN SPRINT BOARD WITH DRAG & DROP             */}
       {/* ======================================================== */}
       {viewMode === 'kanban' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
-          {(['not-started', 'in-progress', 'in-review', 'blocked', 'completed'] as WbsTaskStatus[]).map(statusKey => {
-            const columnTasks = filteredTasks.filter(t => t.status === statusKey);
-            const columnLabels: Record<WbsTaskStatus, string> = {
-              'not-started': 'Backlog / Queued',
-              'in-progress': 'In Progress',
-              'in-review': 'In Review',
-              'blocked': '⚠️ Blocked',
-              'completed': '✓ Completed'
-            };
+        <div className="space-y-3">
+          {/* Board Subheader Hint */}
+          <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 px-1">
+            <span className="flex items-center gap-1.5 font-medium">
+              <Kanban className="w-4 h-4 text-indigo-500" />
+              <span>Sprint Board: Drag &amp; drop task blocks across delivery columns to update status &amp; progress in real-time</span>
+            </span>
+            <span className="text-[11px] font-mono font-medium">
+              Showing {filteredTasks.length} tasks
+            </span>
+          </div>
 
-            return (
-              <div 
-                key={statusKey} 
-                className="bg-slate-50 dark:bg-[#0E162E] p-3 rounded-2xl border border-slate-200 dark:border-[#1E2C4F] flex flex-col min-h-[500px]"
-              >
-                {/* Column Header */}
-                <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-200/80 dark:border-slate-800">
-                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                    {columnLabels[statusKey]}
-                  </span>
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
-                    {columnTasks.length}
-                  </span>
-                </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
+            {(['not-started', 'in-progress', 'in-review', 'blocked', 'completed'] as WbsTaskStatus[]).map(statusKey => {
+              const columnTasks = filteredTasks.filter(t => t.status === statusKey);
+              const columnLabels: Record<WbsTaskStatus, { title: string; color: string }> = {
+                'not-started': { title: 'Backlog / Queued', color: 'border-slate-300 dark:border-slate-700' },
+                'in-progress': { title: 'In Progress', color: 'border-indigo-400 dark:border-indigo-600' },
+                'in-review': { title: 'In Review', color: 'border-purple-400 dark:border-purple-600' },
+                'blocked': { title: '⚠️ Blocked', color: 'border-rose-400 dark:border-rose-600' },
+                'completed': { title: '✓ Completed', color: 'border-emerald-400 dark:border-emerald-600' }
+              };
 
-                {/* Column Cards */}
-                <div className="space-y-2 flex-1 overflow-y-auto">
-                  {columnTasks.map(task => (
-                    <div 
-                      key={task.id} 
-                      className="bg-white dark:bg-[#131F3B] p-3 rounded-xl border border-slate-200/80 dark:border-[#22355C] shadow-2xs space-y-2 hover:border-indigo-400 transition-all cursor-pointer"
-                      onClick={() => {
-                        const nextStatuses: Record<WbsTaskStatus, WbsTaskStatus> = {
-                          'not-started': 'in-progress',
-                          'in-progress': 'in-review',
-                          'in-review': 'completed',
-                          'blocked': 'in-progress',
-                          'completed': 'not-started'
-                        };
-                        onUpdateTask(task.id, { status: nextStatuses[task.status] });
-                      }}
-                      title="Click to advance status"
-                    >
-                      <div className="flex items-center justify-between text-[10px]">
-                        <span className="font-mono text-slate-400">{task.id}</span>
-                        {getPriorityBadge(task.priority)}
+              const isDropTarget = dragOverColumn === statusKey;
+
+              return (
+                <div 
+                  key={statusKey} 
+                  onDragOver={(e) => handleDragOver(e, statusKey)}
+                  onDragLeave={(e) => handleDragLeave(e, statusKey)}
+                  onDrop={(e) => handleDrop(e, statusKey)}
+                  className={`p-3 rounded-2xl border transition-all flex flex-col min-h-[520px] ${
+                    isDropTarget
+                      ? 'bg-indigo-50/90 dark:bg-indigo-950/50 border-indigo-500 ring-2 ring-indigo-400/50 scale-[1.01]'
+                      : 'bg-slate-50 dark:bg-[#0E162E] border-slate-200 dark:border-[#1E2C4F]'
+                  }`}
+                >
+                  {/* Column Header */}
+                  <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-200/80 dark:border-slate-800">
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                      {columnLabels[statusKey].title}
+                    </span>
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                      {columnTasks.length}
+                    </span>
+                  </div>
+
+                  {/* Column Cards Drop Area */}
+                  <div className="space-y-2 flex-1 overflow-y-auto">
+                    {columnTasks.length === 0 ? (
+                      <div className={`h-24 rounded-xl border-2 border-dashed flex flex-col items-center justify-center text-[11px] transition-colors ${
+                        isDropTarget 
+                          ? 'border-indigo-400 bg-indigo-100/30 text-indigo-700 dark:text-indigo-300 font-semibold' 
+                          : 'border-slate-200 dark:border-slate-800/80 text-slate-400 dark:text-slate-500'
+                      }`}>
+                        <span>Drop tasks here</span>
                       </div>
+                    ) : (
+                      columnTasks.map(task => {
+                        const isBeingDragged = draggedTaskId === task.id;
 
-                      <p className="text-xs font-bold text-slate-900 dark:text-white leading-snug line-clamp-2">
-                        {task.taskName}
-                      </p>
+                        return (
+                          <div 
+                            key={task.id} 
+                            draggable
+                            onDragStart={(e) => handleDragStart(e, task.id)}
+                            onDragEnd={handleDragEnd}
+                            onClick={() => {
+                              if (isDragging) return;
+                              const nextStatuses: Record<WbsTaskStatus, WbsTaskStatus> = {
+                                'not-started': 'in-progress',
+                                'in-progress': 'in-review',
+                                'in-review': 'completed',
+                                'blocked': 'in-progress',
+                                'completed': 'not-started'
+                              };
+                              onUpdateTask(task.id, { status: nextStatuses[task.status] });
+                            }}
+                            title="Drag to change column, or click to advance status"
+                            className={`bg-white dark:bg-[#131F3B] p-3 rounded-xl border shadow-2xs space-y-2 transition-all cursor-grab active:cursor-grabbing select-none hover:border-indigo-400 hover:shadow-md ${
+                              isBeingDragged 
+                                ? 'opacity-40 ring-2 ring-indigo-500 scale-95 border-indigo-500' 
+                                : 'border-slate-200/80 dark:border-[#22355C]'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between text-[10px]">
+                              <div className="flex items-center gap-1 text-slate-400">
+                                <GripVertical className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
+                                <span className="font-mono">{task.id}</span>
+                              </div>
+                              {getPriorityBadge(task.priority)}
+                            </div>
 
-                      {task.blockerNote && statusKey === 'blocked' && (
-                        <p className="text-[10px] text-rose-600 dark:text-rose-400 font-medium line-clamp-2">
-                          {task.blockerNote}
-                        </p>
-                      )}
+                            <p className="text-xs font-bold text-slate-900 dark:text-white leading-snug line-clamp-2">
+                              {task.taskName}
+                            </p>
 
-                      <div className="flex items-center justify-between pt-1 text-[10px] text-slate-500 border-t border-slate-100 dark:border-slate-800/80">
-                        <div className="flex items-center gap-1 font-medium text-slate-700 dark:text-slate-300">
-                          <img src={task.assignedUser?.avatar} alt="" className="w-3.5 h-3.5 rounded-full object-cover" />
-                          <span className="truncate max-w-[80px]">{task.assignedUser?.name}</span>
-                        </div>
-                        <span className="font-semibold text-slate-600 dark:text-slate-400">{task.actualHours}/{task.estimatedHours}h</span>
-                      </div>
-                    </div>
-                  ))}
+                            {task.userStory && (
+                              <p className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium line-clamp-1">
+                                📖 {task.userStory}
+                              </p>
+                            )}
+
+                            {task.blockerNote && statusKey === 'blocked' && (
+                              <p className="text-[10px] text-rose-600 dark:text-rose-400 font-medium line-clamp-2 bg-rose-50 dark:bg-rose-950/30 p-1.5 rounded border border-rose-200 dark:border-rose-900/40">
+                                ⚠️ {task.blockerNote}
+                              </p>
+                            )}
+
+                            <div className="flex items-center justify-between pt-1 text-[10px] text-slate-500 border-t border-slate-100 dark:border-slate-800/80">
+                              <div className="flex items-center gap-1 font-medium text-slate-700 dark:text-slate-300">
+                                <img src={task.assignedUser?.avatar} alt="" className="w-3.5 h-3.5 rounded-full object-cover" />
+                                <span className="truncate max-w-[80px]">{task.assignedUser?.name}</span>
+                              </div>
+                              <div className="flex items-center gap-1.5 font-semibold text-slate-600 dark:text-slate-400">
+                                {task.storyPoints && (
+                                  <span className="px-1 rounded bg-slate-100 dark:bg-slate-800 text-[9px] font-mono">
+                                    {task.storyPoints}pt
+                                  </span>
+                                )}
+                                <span>{task.actualHours}/{task.estimatedHours}h</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       )}
 
       {/* ======================================================== */}
-      {/* VIEW 5: CONSOLIDATED BURN DOWN & BURN UP CHARTS          */}
+      {/* VIEW 5: PER-PROJECT BURN DOWN & BURN UP DELIVERY ENGINE  */}
       {/* ======================================================== */}
       {viewMode === 'burndown' && (
         <div className="space-y-5">
@@ -1010,61 +1202,181 @@ export const DeploymentWBSPage: React.FC<DeploymentWBSPageProps> = ({
                     <TrendingUp className="w-5 h-5" />
                   </div>
                   <h3 className="text-base font-bold text-white">
-                    Consolidated Agile Delivery: Burn Down &amp; Burn Up Engine
+                    {activeBurnProject 
+                      ? `${activeBurnProject.accountName} Delivery Burndown & Burnup` 
+                      : 'Consolidated Agile Delivery: Multi-Project Burn Engine'}
                   </h3>
                   <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                     Live Telemetry Sync
                   </span>
                 </div>
                 <p className="text-xs text-indigo-200/80 mt-1 max-w-2xl leading-relaxed">
-                  Real-time delivery burndown against estimated effort, scope-creep tracking via burnup trajectory, Definition of Done (DoD) compliance, and test case execution coverage.
+                  Real-time project-specific delivery burndown against budget hours, scope-creep tracking via burnup trajectory, Definition of Done (DoD) compliance, and test execution matrix.
                 </p>
               </div>
 
-              {/* Quick Metric Pills */}
+              {/* Quick Metric Pills for Selected Project */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center shrink-0">
                 <div className="p-2.5 rounded-xl bg-white/5 border border-white/10">
                   <span className="text-[10px] text-indigo-300 block">Total Scope</span>
                   <span className="text-sm font-extrabold text-white">
-                    {burnChartData[burnChartData.length - 1]?.totalScope || 200}h
+                    {activeBurnChartData[activeBurnChartData.length - 1]?.totalScope || activeBurnAllocated}h
                   </span>
                 </div>
                 <div className="p-2.5 rounded-xl bg-white/5 border border-white/10">
                   <span className="text-[10px] text-emerald-300 block">Scope Burned</span>
                   <span className="text-sm font-extrabold text-emerald-400">
-                    {burnChartData[burnChartData.length - 1]?.completedScope || 145}h
+                    {activeBurnChartData[activeBurnChartData.length - 1]?.completedScope || 0}h
                   </span>
                 </div>
                 <div className="p-2.5 rounded-xl bg-white/5 border border-white/10">
                   <span className="text-[10px] text-amber-300 block">Remaining</span>
                   <span className="text-sm font-extrabold text-amber-300">
-                    {burnChartData[burnChartData.length - 1]?.actualBurnRemaining || 55}h
+                    {activeBurnChartData[activeBurnChartData.length - 1]?.actualBurnRemaining || 0}h
                   </span>
                 </div>
                 <div className="p-2.5 rounded-xl bg-white/5 border border-white/10">
-                  <span className="text-[10px] text-sky-300 block">Velocity Pace</span>
+                  <span className="text-[10px] text-sky-300 block">Progress</span>
                   <span className="text-sm font-extrabold text-sky-300">
-                    {calculatedVelocity.weeklyBurnHours}h / wk
+                    {activeBurnProgress}%
                   </span>
                 </div>
               </div>
             </div>
+
+            {/* Interactive Project Switcher Pill Strip */}
+            <div className="mt-4 pt-3 border-t border-white/10 flex flex-wrap items-center gap-2">
+              <span className="text-[11px] font-semibold text-indigo-200 mr-1">
+                Project View:
+              </span>
+              <button
+                type="button"
+                onClick={() => setActiveBurnProjectId('all')}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  activeBurnProjectId === 'all'
+                    ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-400'
+                    : 'bg-white/10 text-indigo-200 hover:bg-white/20'
+                }`}
+              >
+                <span>Consolidated (All Projects)</span>
+                <span className="text-[10px] opacity-75">({projects.length})</span>
+              </button>
+
+              {projects.map((proj) => {
+                const isSelected = activeBurnProjectId === proj.id;
+                const statusDot = 
+                  proj.deliveryHealth === 'on-track' ? 'bg-emerald-400' :
+                  proj.deliveryHealth === 'at-risk' ? 'bg-amber-400' : 'bg-rose-400';
+
+                return (
+                  <button
+                    key={proj.id}
+                    type="button"
+                    onClick={() => setActiveBurnProjectId(proj.id)}
+                    className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer ${
+                      isSelected
+                        ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-400'
+                        : 'bg-white/10 text-indigo-200 hover:bg-white/20'
+                    }`}
+                  >
+                    <span className={`w-2 h-2 rounded-full ${statusDot}`} />
+                    <span>{proj.accountName}</span>
+                    <span className="text-[10px] font-mono opacity-80">
+                      {proj.phaseProgress !== undefined ? `${proj.phaseProgress}%` : ''}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
-          {/* Charts Row: Side-by-Side Consolidated Burn Down and Burn Up Charts */}
+          {/* Active Project Detail Scorecard (when an individual project is selected) */}
+          {activeBurnProject && (
+            <div className="bg-white dark:bg-[#0E162E] p-4 rounded-2xl border border-slate-200 dark:border-[#1E2D52] shadow-2xs space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 flex items-center justify-center font-bold text-indigo-600 dark:text-indigo-400 text-sm">
+                    {activeBurnProject.accountName.slice(0, 2).toUpperCase()}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                        {activeBurnProject.accountName}
+                      </h4>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                        {activeBurnProject.domain}
+                      </span>
+                      <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full border ${
+                        activeBurnProject.deliveryHealth === 'on-track' 
+                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'
+                          : activeBurnProject.deliveryHealth === 'at-risk'
+                          ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border-amber-300 dark:border-amber-800'
+                          : 'bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300 border-rose-300 dark:border-rose-800'
+                      }`}>
+                        {activeBurnProject.deliveryHealth}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      {activeBurnProject.deliveryPhase} • Plan Tier: <strong className="text-slate-700 dark:text-slate-300">{activeBurnProject.plan}</strong> • Lead: <strong className="text-indigo-600 dark:text-indigo-400">{typeof activeBurnProject.deliveryLead === 'object' ? activeBurnProject.deliveryLead?.name : activeBurnProject.deliveryLead}</strong>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 text-xs flex-wrap">
+                  <div className="px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-[#111C35] border border-slate-200 dark:border-slate-800">
+                    <span className="text-[10px] text-slate-400 block">Baseline Go-Live</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-200 font-mono">
+                      {activeBurnProject.baselineTargetDate}
+                    </span>
+                  </div>
+                  <div className="px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-[#111C35] border border-slate-200 dark:border-slate-800">
+                    <span className="text-[10px] text-slate-400 block">Allocated vs Burned</span>
+                    <span className={`font-bold font-mono ${
+                      (activeBurnProject.hoursBurned || 0) > (activeBurnProject.hoursAllocated || 200)
+                        ? 'text-rose-600 dark:text-rose-400'
+                        : 'text-slate-800 dark:text-slate-200'
+                    }`}>
+                      {activeBurnProject.hoursBurned || 0}h / {activeBurnProject.hoursAllocated || 200}h
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Blocker & Executive Action Banner if blocker exists */}
+              {activeBurnProject.currentBlocker && (
+                <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/60 text-xs space-y-1">
+                  <div className="flex items-start gap-2 text-rose-800 dark:text-rose-300 font-medium">
+                    <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold">Active Delivery Blocker: </span>
+                      <span>{activeBurnProject.currentBlocker}</span>
+                    </div>
+                  </div>
+                  {activeBurnProject.csuiteActionNeeded && (
+                    <div className="pl-6 text-[11px] text-rose-700 dark:text-rose-400">
+                      <strong>Executive Action Needed: </strong>
+                      <span>{activeBurnProject.csuiteActionNeeded}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Charts Row: Side-by-Side Per-Project Burn Down and Burn Up Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             
-            {/* Chart 1: Consolidated Sprint Burn Down Chart */}
+            {/* Chart 1: Sprint Burn Down Chart */}
             <div className="bg-white dark:bg-[#0E162E] p-5 rounded-2xl border border-slate-200 dark:border-[#1E2D52] shadow-2xs space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-[#1E2D52]">
                 <div className="flex items-center gap-2">
                   <Flame className="w-4 h-4 text-amber-500" />
                   <div>
                     <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
-                      Consolidated Sprint Burn Down Chart
+                      {activeBurnProject ? `${activeBurnProject.accountName} Burndown` : 'Consolidated Burndown Chart'}
                     </h4>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Remaining hours / story points vs. ideal linear burn trajectory
+                      Remaining effort vs. ideal linear trajectory (Max Scale: {maxBurnScale}h)
                     </p>
                   </div>
                 </div>
@@ -1076,7 +1388,7 @@ export const DeploymentWBSPage: React.FC<DeploymentWBSPageProps> = ({
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 dark:bg-indigo-400" />
-                    <span className="text-indigo-600 dark:text-indigo-400">Actual Burn</span>
+                    <span className="text-indigo-600 dark:text-indigo-400">Actual Remaining</span>
                   </div>
                 </div>
               </div>
@@ -1091,38 +1403,50 @@ export const DeploymentWBSPage: React.FC<DeploymentWBSPageProps> = ({
                     </linearGradient>
                   </defs>
 
-                  {/* Horizontal Guide Lines */}
-                  {[0, 50, 100, 150].map((yVal, idx) => (
-                    <g key={idx}>
-                      <line x1="40" y1={yVal + 20} x2="480" y2={yVal + 20} stroke="currentColor" className="text-slate-200 dark:text-slate-800" strokeDasharray="3 3" />
-                      <text x="32" y={yVal + 24} textAnchor="end" className="text-[9px] fill-slate-400 font-mono">
-                        {Math.round(((150 - yVal) / 150) * (burnChartData[0]?.totalScope || 200))}h
-                      </text>
-                    </g>
-                  ))}
+                  {/* Horizontal Guide Lines with Dynamic Scales */}
+                  {[0, 0.25, 0.5, 0.75, 1.0].map((frac, idx) => {
+                    const yVal = 170 - frac * 145;
+                    const hoursVal = Math.round(frac * maxBurnScale);
+                    return (
+                      <g key={idx}>
+                        <line x1="40" y1={yVal} x2="480" y2={yVal} stroke="currentColor" className="text-slate-200 dark:text-slate-800" strokeDasharray="3 3" />
+                        <text x="34" y={yVal + 3} textAnchor="end" className="text-[9px] fill-slate-400 font-mono">
+                          {hoursVal}h
+                        </text>
+                      </g>
+                    );
+                  })}
 
                   {/* Ideal Burn Line (Dashed) */}
-                  <line 
-                    x1="45" 
-                    y1="25" 
-                    x2="475" 
-                    y2="170" 
-                    stroke="#94A3B8" 
-                    strokeWidth="2" 
-                    strokeDasharray="6 4" 
-                  />
+                  {(() => {
+                    const idealStartY = 170 - (Math.min(maxBurnScale, activeBurnAllocated) / maxBurnScale) * 145;
+                    return (
+                      <line 
+                        x1="45" 
+                        y1={idealStartY} 
+                        x2="475" 
+                        y2="170" 
+                        stroke="#94A3B8" 
+                        strokeWidth="2" 
+                        strokeDasharray="6 4" 
+                      />
+                    );
+                  })()}
 
                   {/* Actual Burn Area & Line */}
                   {(() => {
-                    const maxScope = burnChartData[0]?.totalScope || 200;
-                    const pts = burnChartData.map((pt, idx) => {
-                      const x = 45 + (idx / (burnChartData.length - 1)) * 430;
-                      const y = 170 - (pt.actualBurnRemaining / (maxScope || 1)) * 145;
+                    const totalSteps = Math.max(1, activeBurnChartData.length - 1);
+                    const pts = activeBurnChartData.map((pt, idx) => {
+                      const x = 45 + (idx / totalSteps) * 430;
+                      const clampedVal = Math.min(maxBurnScale, Math.max(0, pt.actualBurnRemaining));
+                      const y = 170 - (clampedVal / maxBurnScale) * 145;
                       return { x, y, ...pt };
                     });
 
-                    const pathStr = pts.reduce((acc, p, idx) => `${acc} ${idx === 0 ? 'M' : 'L'} ${p.x} ${p.y}`, '');
-                    const areaStr = `${pathStr} L 475 170 L 45 170 Z`;
+                    const pathStr = pts.reduce((acc, p, idx) => `${acc} ${idx === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`, '');
+                    const lastX = pts[pts.length - 1]?.x || 475;
+                    const firstX = pts[0]?.x || 45;
+                    const areaStr = `${pathStr} L ${lastX.toFixed(1)} 170 L ${firstX.toFixed(1)} 170 Z`;
 
                     return (
                       <>
@@ -1130,7 +1454,9 @@ export const DeploymentWBSPage: React.FC<DeploymentWBSPageProps> = ({
                         <path d={pathStr} fill="none" stroke="#6366F1" strokeWidth="2.5" />
                         {pts.map((p, i) => (
                           <g key={i}>
-                            <circle cx={p.x} cy={p.y} r="3.5" fill="#6366F1" stroke="#FFFFFF" strokeWidth="1.5" />
+                            <circle cx={p.x} cy={p.y} r="3.5" fill="#6366F1" stroke="#FFFFFF" strokeWidth="1.5">
+                              <title>{`${p.dayLabel}: ${p.actualBurnRemaining}h remaining`}</title>
+                            </circle>
                             <text x={p.x} y="190" textAnchor="middle" className="text-[8px] fill-slate-400 font-mono">
                               {p.dayLabel}
                             </text>
@@ -1143,25 +1469,33 @@ export const DeploymentWBSPage: React.FC<DeploymentWBSPageProps> = ({
               </div>
 
               {/* Status Note */}
-              <div className="p-2.5 rounded-xl bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-200/60 dark:border-indigo-900/50 flex items-center justify-between text-[11px]">
+              <div className="p-2.5 rounded-xl bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-200/60 dark:border-indigo-900/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-[11px]">
                 <div className="flex items-center gap-1.5 text-indigo-700 dark:text-indigo-300">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                  <span>Sprint Burn Pace: <strong>On Track</strong> — projected to reach 0 remaining hours by sprint cutoff.</span>
+                  <span>
+                    {activeBurnProgress === 100 ? (
+                      <>Delivery Complete (<strong>100%</strong>) — All sprint deliverables deployed.</>
+                    ) : activeBurnBurned > activeBurnAllocated ? (
+                      <>Budget Overrun (<strong>+{activeBurnBurned - activeBurnAllocated}h</strong>) — Scope adjusted for technical blockers.</>
+                    ) : (
+                      <>Sprint Burn Pace: <strong>On Track</strong> — projected to reach 0 remaining hours by baseline cutoff.</>
+                    )}
+                  </span>
                 </div>
-                <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">
-                  -18h / sprint
+                <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400 shrink-0">
+                  {activeBurnBurned}/{activeBurnAllocated}h burned
                 </span>
               </div>
             </div>
 
-            {/* Chart 2: Consolidated Sprint Burn Up Chart */}
+            {/* Chart 2: Sprint Burn Up Chart */}
             <div className="bg-white dark:bg-[#0E162E] p-5 rounded-2xl border border-slate-200 dark:border-[#1E2D52] shadow-2xs space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-[#1E2D52]">
                 <div className="flex items-center gap-2">
                   <TrendingUp className="w-4 h-4 text-emerald-500" />
                   <div>
                     <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
-                      Consolidated Sprint Burn Up Chart
+                      {activeBurnProject ? `${activeBurnProject.accountName} Burnup` : 'Consolidated Burnup Chart'}
                     </h4>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">
                       Completed work vs. Total Scope line (Scope Creep Identification)
@@ -1192,33 +1526,41 @@ export const DeploymentWBSPage: React.FC<DeploymentWBSPageProps> = ({
                   </defs>
 
                   {/* Horizontal Guide Lines */}
-                  {[0, 50, 100, 150].map((yVal, idx) => (
-                    <g key={idx}>
-                      <line x1="40" y1={yVal + 20} x2="480" y2={yVal + 20} stroke="currentColor" className="text-slate-200 dark:text-slate-800" strokeDasharray="3 3" />
-                      <text x="32" y={yVal + 24} textAnchor="end" className="text-[9px] fill-slate-400 font-mono">
-                        {Math.round(((150 - yVal) / 150) * (burnChartData[0]?.totalScope || 200) * 1.1)}h
-                      </text>
-                    </g>
-                  ))}
+                  {[0, 0.25, 0.5, 0.75, 1.0].map((frac, idx) => {
+                    const yVal = 170 - frac * 145;
+                    const hoursVal = Math.round(frac * maxBurnScale);
+                    return (
+                      <g key={idx}>
+                        <line x1="40" y1={yVal} x2="480" y2={yVal} stroke="currentColor" className="text-slate-200 dark:text-slate-800" strokeDasharray="3 3" />
+                        <text x="34" y={yVal + 3} textAnchor="end" className="text-[9px] fill-slate-400 font-mono">
+                          {hoursVal}h
+                        </text>
+                      </g>
+                    );
+                  })}
 
                   {/* Burn Up Lines */}
                   {(() => {
-                    const maxScale = (burnChartData[0]?.totalScope || 200) * 1.1;
-                    const scopePts = burnChartData.map((pt, idx) => {
-                      const x = 45 + (idx / (burnChartData.length - 1)) * 430;
-                      const y = 170 - (pt.totalScope / maxScale) * 145;
+                    const totalSteps = Math.max(1, activeBurnChartData.length - 1);
+                    const scopePts = activeBurnChartData.map((pt, idx) => {
+                      const x = 45 + (idx / totalSteps) * 430;
+                      const clampedScope = Math.min(maxBurnScale, Math.max(0, pt.totalScope));
+                      const y = 170 - (clampedScope / maxBurnScale) * 145;
                       return { x, y, ...pt };
                     });
 
-                    const completedPts = burnChartData.map((pt, idx) => {
-                      const x = 45 + (idx / (burnChartData.length - 1)) * 430;
-                      const y = 170 - (pt.completedScope / maxScale) * 145;
+                    const completedPts = activeBurnChartData.map((pt, idx) => {
+                      const x = 45 + (idx / totalSteps) * 430;
+                      const clampedCompleted = Math.min(maxBurnScale, Math.max(0, pt.completedScope));
+                      const y = 170 - (clampedCompleted / maxBurnScale) * 145;
                       return { x, y, ...pt };
                     });
 
-                    const scopePath = scopePts.reduce((acc, p, idx) => `${acc} ${idx === 0 ? 'M' : 'L'} ${p.x} ${p.y}`, '');
-                    const completedPath = completedPts.reduce((acc, p, idx) => `${acc} ${idx === 0 ? 'M' : 'L'} ${p.x} ${p.y}`, '');
-                    const completedArea = `${completedPath} L 475 170 L 45 170 Z`;
+                    const scopePath = scopePts.reduce((acc, p, idx) => `${acc} ${idx === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`, '');
+                    const completedPath = completedPts.reduce((acc, p, idx) => `${acc} ${idx === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`, '');
+                    const lastX = completedPts[completedPts.length - 1]?.x || 475;
+                    const firstX = completedPts[0]?.x || 45;
+                    const completedArea = `${completedPath} L ${lastX.toFixed(1)} 170 L ${firstX.toFixed(1)} 170 Z`;
 
                     return (
                       <>
@@ -1230,7 +1572,9 @@ export const DeploymentWBSPage: React.FC<DeploymentWBSPageProps> = ({
                         
                         {completedPts.map((p, i) => (
                           <g key={i}>
-                            <circle cx={p.x} cy={p.y} r="3.5" fill="#10B981" stroke="#FFFFFF" strokeWidth="1.5" />
+                            <circle cx={p.x} cy={p.y} r="3.5" fill="#10B981" stroke="#FFFFFF" strokeWidth="1.5">
+                              <title>{`${p.dayLabel}: ${p.completedScope}h completed / ${p.totalScope}h scope`}</title>
+                            </circle>
                             <text x={p.x} y="190" textAnchor="middle" className="text-[8px] fill-slate-400 font-mono">
                               {p.dayLabel}
                             </text>
@@ -1243,13 +1587,19 @@ export const DeploymentWBSPage: React.FC<DeploymentWBSPageProps> = ({
               </div>
 
               {/* Status Note */}
-              <div className="p-2.5 rounded-xl bg-amber-50/60 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-900/50 flex items-center justify-between text-[11px]">
+              <div className="p-2.5 rounded-xl bg-amber-50/60 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-900/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-[11px]">
                 <div className="flex items-center gap-1.5 text-amber-700 dark:text-amber-300">
                   <ShieldCheck className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                  <span>Scope Stability: <strong>95.2%</strong> — minimal scope creep (+10h added in sprint 3).</span>
+                  <span>
+                    {activeBurnProgress === 100 ? (
+                      <>Scope Convergence: <strong>100% Done</strong> — all scoped user stories verified.</>
+                    ) : (
+                      <>Scope Stability: <strong>{activeBurnProgress >= 80 ? '95.2%' : '88.5%'}</strong> — tracking towards go-live convergence.</>
+                    )}
+                  </span>
                 </div>
-                <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                  Convergence in 5 days
+                <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 shrink-0">
+                  {activeBurnProgress === 100 ? 'Fully Delivered' : `Target: ${activeBurnTargetDate}`}
                 </span>
               </div>
             </div>
@@ -1261,14 +1611,14 @@ export const DeploymentWBSPage: React.FC<DeploymentWBSPageProps> = ({
               <div>
                 <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
                   <Layers className="w-4 h-4 text-indigo-500" />
-                  Agile Delivery Hierarchy: Epics &gt; Features &gt; User Stories &gt; Tasks
+                  {activeBurnProject ? `${activeBurnProject.accountName} Stories & Deliverables` : 'Agile Delivery Hierarchy: Epics > Features > User Stories > Tasks'}
                 </h4>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400">
                   Structured breakdown linking high-level strategic epics down to executable tasks and acceptance criteria.
                 </p>
               </div>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-slate-100 dark:bg-[#111C35] text-slate-600 dark:text-slate-300 font-bold">
-                {filteredTasks.length} Active User Stories / Deliverables
+                {activeBurnTasks.length} Active User Stories / Deliverables
               </span>
             </div>
 
@@ -1287,7 +1637,7 @@ export const DeploymentWBSPage: React.FC<DeploymentWBSPageProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
-                  {filteredTasks.map((task) => {
+                  {activeBurnTasks.map((task) => {
                     const isDone = task.status === 'completed';
                     const isBlocked = task.status === 'blocked';
                     const points = task.storyPoints || (task.estimatedHours > 20 ? 8 : task.estimatedHours > 10 ? 5 : 3);
@@ -1390,8 +1740,8 @@ export const DeploymentWBSPage: React.FC<DeploymentWBSPageProps> = ({
                   { id: 'dod-1', title: 'Peer Review & Architectural Sign-Off', desc: 'Code reviewed by minimum 1 Senior Architect / FDE', passed: true },
                   { id: 'dod-2', title: 'Unit & Regression Test Coverage >= 80%', desc: 'Automated CI/CD suite passing with zero critical vulnerabilities', passed: true },
                   { id: 'dod-3', title: 'Identity & Enterprise SSO Compliance', desc: 'Azure AD / SAML 2.0 federation and SCIM sync verified', passed: true },
-                  { id: 'dod-4', title: 'UAT Client Sponsor Acceptance', desc: 'Formal verification by client business sponsor in staging', passed: calculatedProgress > 60 },
-                  { id: 'dod-5', title: 'Production Runbook & Rollback Protocol', desc: 'Disaster recovery and zero-downtime cutover plan signed off', passed: calculatedProgress > 80 },
+                  { id: 'dod-4', title: 'UAT Client Sponsor Acceptance', desc: 'Formal verification by client business sponsor in staging', passed: activeBurnProgress > 60 },
+                  { id: 'dod-5', title: 'Production Runbook & Rollback Protocol', desc: 'Disaster recovery and zero-downtime cutover plan signed off', passed: activeBurnProgress > 80 },
                 ].map((item, idx) => (
                   <div key={idx} className="p-3 rounded-xl bg-slate-50 dark:bg-[#111C35] border border-slate-200/80 dark:border-[#22355C] flex items-start gap-3">
                     <div className={`mt-0.5 p-1 rounded-md ${item.passed ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-slate-200 dark:bg-slate-800 text-slate-400'}`}>
@@ -1417,7 +1767,7 @@ export const DeploymentWBSPage: React.FC<DeploymentWBSPageProps> = ({
                   <FileCheck2 className="w-4 h-4 text-indigo-500" />
                   <div>
                     <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
-                      Test Cases &amp; Verification Matrix
+                      {activeBurnProject ? `${activeBurnProject.accountName} Test Matrix` : 'Test Cases & Verification Matrix'}
                     </h4>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">
                       Automated &amp; manual test runs across Unit, Integration, UAT, and Security
@@ -1426,18 +1776,20 @@ export const DeploymentWBSPage: React.FC<DeploymentWBSPageProps> = ({
                 </div>
 
                 <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300">
-                  94.2% Pass Rate
+                  {activeBurnProgress === 100 ? '100% Pass Rate' : '94.2% Pass Rate'}
                 </span>
               </div>
 
               <div className="space-y-2">
                 {[
-                  { id: 'TC-01', title: 'Azure AD OpenID Connect Discovery & Token Validation', type: 'Security / IAM', assignee: 'Dip Bagchi', status: 'passed', runtime: '34ms' },
-                  { id: 'TC-02', title: 'Saswane Technical Schematics Embedding Ingestion', type: 'Integration', assignee: 'Shubham', status: 'passed', runtime: '1.2s' },
-                  { id: 'TC-03', title: 'QGPT Semantic Query Latency (<400ms SLA)', type: 'Performance', assignee: 'Shubham', status: 'passed', runtime: '280ms' },
-                  { id: 'TC-04', title: 'ArcelorMittal H&S Incident Audit Trail Verification', type: 'UAT / Compliance', assignee: 'Trevor', status: 'passed', runtime: 'Manual' },
-                  { id: 'TC-05', title: 'Indorama IRC Finance Gateway Network Handshake', type: 'Infrastructure', assignee: 'Dip Bagchi', status: 'in-progress', runtime: 'Pending' },
-                ].map((tc) => (
+                  { id: 'TC-01', title: 'Azure AD OpenID Connect Discovery & Token Validation', type: 'Security / IAM', assignee: 'Dip Bagchi', status: 'passed', runtime: '34ms', projectIds: ['all', 'proj-shpl', 'proj-arcelor', 'proj-indorama'] },
+                  { id: 'TC-02', title: 'Saswane Technical Schematics Embedding Ingestion', type: 'Integration', assignee: 'Shubham', status: 'passed', runtime: '1.2s', projectIds: ['proj-shpl'] },
+                  { id: 'TC-03', title: 'QGPT Semantic Query Latency (<400ms SLA)', type: 'Performance', assignee: 'Shubham', status: 'passed', runtime: '280ms', projectIds: ['proj-shpl'] },
+                  { id: 'TC-04', title: 'ArcelorMittal H&S Incident Audit Trail Verification', type: 'UAT / Compliance', assignee: 'Trevor', status: 'passed', runtime: 'Manual', projectIds: ['proj-arcelor'] },
+                  { id: 'TC-05', title: 'Indorama IRC Finance Gateway Network Handshake', type: 'Infrastructure', assignee: 'Dip Bagchi', status: 'in-progress', runtime: 'Pending', projectIds: ['proj-indorama'] },
+                ]
+                  .filter(tc => !activeBurnProject || tc.projectIds.includes('all') || tc.projectIds.includes(activeBurnProject.id))
+                  .map((tc) => (
                   <div key={tc.id} className="p-2.5 rounded-xl bg-slate-50 dark:bg-[#111C35] border border-slate-200/80 dark:border-[#22355C] flex items-center justify-between gap-3 text-xs">
                     <div className="flex items-center gap-2.5 min-w-0">
                       <span className="font-mono text-[10px] font-bold text-slate-400 shrink-0">
@@ -1474,7 +1826,6 @@ export const DeploymentWBSPage: React.FC<DeploymentWBSPageProps> = ({
           </div>
         </div>
       )}
-
 
       {/* Create Task Modal */}
       <CreateWbsTaskModal

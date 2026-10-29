@@ -69,12 +69,57 @@ export const CreateWbsTaskModal: React.FC<CreateWbsTaskModalProps> = ({
   const [blockerNote, setBlockerNote] = useState('');
   const [tagsInput, setTagsInput] = useState('Core, Setup');
 
+  // Agile & Quality Gate Specs
+  const [showAgileSection, setShowAgileSection] = useState(false);
+  const [epicName, setEpicName] = useState('');
+  const [featureName, setFeatureName] = useState('');
+  const [userStory, setUserStory] = useState('');
+  const [storyPoints, setStoryPoints] = useState(5);
+  const [acceptanceCriteriaText, setAcceptanceCriteriaText] = useState('');
+  const [testCaseText, setTestCaseText] = useState('');
+
   const selectedProject = projects.find(p => p.id === projectId);
   const selectedAssignee = assignees.find(a => a.id === assigneeId) || assignees[0];
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!taskName.trim()) return;
+
+    const parsedAc = acceptanceCriteriaText.trim()
+      ? acceptanceCriteriaText.split('\n').filter(Boolean).map((line, idx) => ({
+          id: `ac-${Date.now()}-${idx}`,
+          text: line.trim().replace(/^[-*•]\s*/, ''),
+          completed: false,
+        }))
+      : [
+          { id: `ac-1`, text: 'Feature requirements verified against functional specification', completed: false },
+          { id: `ac-2`, text: 'No high-severity regressions or security flaws detected', completed: false },
+        ];
+
+    const standardDod = [
+      { id: 'dod-1', criteria: 'Peer code review completed and approved', completed: status === 'completed' },
+      { id: 'dod-2', criteria: 'Unit & integration test suites passing (>=80% coverage)', completed: status === 'completed' },
+      { id: 'dod-3', criteria: 'UAT client acceptance sign-off documented', completed: status === 'completed' },
+      { id: 'dod-4', criteria: 'Deployment runbook and rollback plan verified', completed: status === 'completed' },
+    ];
+
+    const parsedTests = testCaseText.trim()
+      ? testCaseText.split('\n').filter(Boolean).map((line, idx) => ({
+          id: `tc-${Date.now()}-${idx}`,
+          title: line.trim().replace(/^[-*•]\s*/, ''),
+          type: 'integration' as const,
+          status: status === 'completed' ? 'passed' as const : 'untested' as const,
+          assignee: selectedAssignee.name,
+        }))
+      : [
+          {
+            id: `tc-1`,
+            title: `Verify ${taskName.trim()} execution and error handling`,
+            type: 'integration' as const,
+            status: status === 'completed' ? 'passed' as const : 'untested' as const,
+            assignee: selectedAssignee.name,
+          },
+        ];
 
     const taskPayload: Partial<WbsTask> = {
       projectId,
@@ -92,6 +137,13 @@ export const CreateWbsTaskModal: React.FC<CreateWbsTaskModalProps> = ({
       isMilestone,
       isCriticalPath,
       blockerNote: status === 'blocked' ? blockerNote : undefined,
+      epicName: epicName.trim() || phase,
+      featureName: featureName.trim() || workPackage,
+      userStory: userStory.trim() || undefined,
+      storyPoints: Number(storyPoints) || 5,
+      acceptanceCriteria: parsedAc,
+      definitionOfDone: standardDod,
+      testCases: parsedTests,
     };
 
     if (onSaveTask) {
@@ -363,6 +415,116 @@ export const CreateWbsTaskModal: React.FC<CreateWbsTaskModalProps> = ({
               />
               <span>Key Contractual Milestone</span>
             </label>
+          </div>
+
+          {/* Agile Hierarchy & QA Quality Gates Accordion */}
+          <div className="border border-slate-200 dark:border-[#22355C] rounded-xl overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setShowAgileSection(!showAgileSection)}
+              className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-[#111C35] flex items-center justify-between text-left text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#152342] transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-indigo-500" />
+                <span className="font-bold text-xs">
+                  Agile SDLC Specs: Epics, User Stories, Acceptance Criteria & Test Cases
+                </span>
+              </div>
+              <span className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold">
+                {showAgileSection ? 'Hide' : 'Configure +'}
+              </span>
+            </button>
+
+            {showAgileSection && (
+              <div className="p-3.5 space-y-3 bg-white dark:bg-[#0E162E] text-xs border-t border-slate-200 dark:border-[#22355C]">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Epic Name
+                    </label>
+                    <input
+                      type="text"
+                      value={epicName}
+                      onChange={(e) => setEpicName(e.target.value)}
+                      placeholder={phase}
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#111C35] border border-slate-200 dark:border-[#22355C] rounded-lg text-slate-900 dark:text-slate-100 outline-hidden"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Feature Name
+                    </label>
+                    <input
+                      type="text"
+                      value={featureName}
+                      onChange={(e) => setFeatureName(e.target.value)}
+                      placeholder={workPackage}
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#111C35] border border-slate-200 dark:border-[#22355C] rounded-lg text-slate-900 dark:text-slate-100 outline-hidden"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Story Points (Fibonacci)
+                    </label>
+                    <select
+                      value={storyPoints}
+                      onChange={(e) => setStoryPoints(Number(e.target.value))}
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#111C35] border border-slate-200 dark:border-[#22355C] rounded-lg text-slate-900 dark:text-slate-100 outline-hidden font-bold"
+                    >
+                      <option value="1">1 pt (Trivial / 2-4 hrs)</option>
+                      <option value="2">2 pts (Simple / 4-8 hrs)</option>
+                      <option value="3">3 pts (Medium / 8-16 hrs)</option>
+                      <option value="5">5 pts (Complex / 16-24 hrs)</option>
+                      <option value="8">8 pts (Significant / 24-40 hrs)</option>
+                      <option value="13">13 pts (Epic-sized / 40+ hrs)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    User Story (Agile Format)
+                  </label>
+                  <input
+                    type="text"
+                    value={userStory}
+                    onChange={(e) => setUserStory(e.target.value)}
+                    placeholder="As a [role], I want to [action] so that [business value]..."
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#111C35] border border-slate-200 dark:border-[#22355C] rounded-lg text-slate-900 dark:text-slate-100 outline-hidden italic"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Acceptance Criteria (1 per line)
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={acceptanceCriteriaText}
+                      onChange={(e) => setAcceptanceCriteriaText(e.target.value)}
+                      placeholder="• Given valid enterprise token, When user logs in, Then role matches group mapping&#10;• Error toast displayed on invalid signature"
+                      className="w-full p-2 text-xs rounded-lg border border-slate-200 dark:border-[#22355C] bg-slate-50 dark:bg-[#111C35] text-slate-900 dark:text-slate-100 outline-hidden font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Test Cases / QA Validation (1 per line)
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={testCaseText}
+                      onChange={(e) => setTestCaseText(e.target.value)}
+                      placeholder="• [Integration] Verify OIDC discovery endpoint handshake&#10;• [UAT] Confirm client sponsor sign-off in staging"
+                      className="w-full p-2 text-xs rounded-lg border border-slate-200 dark:border-[#22355C] bg-slate-50 dark:bg-[#111C35] text-slate-900 dark:text-slate-100 outline-hidden font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Blocker Note (conditional on status === 'blocked') */}

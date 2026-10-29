@@ -325,6 +325,37 @@ export interface WbsAssignee {
   email: string;
 }
 
+export interface AcceptanceCriterion {
+  id: string;
+  text: string;
+  completed: boolean;
+}
+
+export interface DefinitionOfDoneItem {
+  id: string;
+  criteria: string;
+  completed: boolean;
+  verifiedBy?: string;
+}
+
+export interface WbsTestCase {
+  id: string;
+  title: string;
+  type: 'unit' | 'integration' | 'uat' | 'security' | 'regression';
+  status: 'passed' | 'failed' | 'in-progress' | 'untested';
+  assignee: string;
+  lastRun?: string;
+  notes?: string;
+}
+
+export interface BurnChartPoint {
+  dayLabel: string;
+  idealBurnRemaining: number;
+  actualBurnRemaining: number;
+  totalScope: number;
+  completedScope: number;
+}
+
 export interface WbsTask {
   id: string; // e.g. "SHPL-WBS-1.1"
   projectId: string; // references DeliveryProject.id
@@ -345,6 +376,13 @@ export interface WbsTask {
   isMilestone?: boolean;
   blockerNote?: string;
   lastUpdated?: string;
+  epicName?: string;
+  featureName?: string;
+  userStory?: string;
+  storyPoints?: number;
+  acceptanceCriteria?: AcceptanceCriterion[];
+  definitionOfDone?: DefinitionOfDoneItem[];
+  testCases?: WbsTestCase[];
 }
 
 export interface UserWorkloadItem {

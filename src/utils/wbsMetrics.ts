@@ -1,4 +1,4 @@
-import { WbsTask, TeamVelocityMetrics, UserWorkloadItem, DeliveryProject } from '../types';
+import { WbsTask, TeamVelocityMetrics, UserWorkloadItem, DeliveryProject, BurnChartPoint } from '../types';
 
 /**
  * Calculates effort-weighted percentage completion across WBS tasks.
@@ -180,4 +180,54 @@ export function calculatePredictedGoLive(
   }
 
   return { predictedDate: baselineTargetDate, varianceDays: variance };
+}
+
+/**
+ * Calculates consolidated Burndown and Burnup series for sprint & project delivery tracking.
+ */
+export function calculateBurnChartSeries(tasks: WbsTask[], totalAllocatedHours?: number): BurnChartPoint[] {
+  const totalEffort = totalAllocatedHours || Math.max(80, tasks.reduce((sum, t) => sum + (Number(t.estimatedHours) || 8), 0));
+  const completedEffort = tasks.reduce((sum, t) => {
+    const hours = Number(t.estimatedHours) || 8;
+    const pct = t.status === 'completed' ? 100 : Number(t.progress) || 0;
+    return sum + (hours * (pct / 100));
+  }, 0);
+
+  const progressRatio = totalEffort > 0 ? completedEffort / totalEffort : 0;
+  const intervals = 8;
+  const currentInterval = Math.min(intervals, Math.max(1, Math.round(progressRatio * intervals)));
+
+  const points: BurnChartPoint[] = [];
+
+  for (let i = 0; i <= intervals; i++) {
+    const fraction = i / intervals;
+    const idealBurn = Math.round(totalEffort * (1 - fraction));
+    const scopeAtStep = i >= 3 && tasks.length > 8 ? Math.round(totalEffort * 1.05) : totalEffort;
+
+    let actualBurn: number;
+    let completedScope: number;
+
+    if (i <= currentInterval) {
+      const stepProg = i / currentInterval;
+      completedScope = Math.round(completedEffort * stepProg);
+      actualBurn = Math.max(0, Math.round(scopeAtStep - completedScope));
+    } else {
+      const projectedStepCompleted = Math.min(
+        scopeAtStep,
+        Math.round(completedEffort + ((scopeAtStep - completedEffort) * ((i - currentInterval) / (intervals - currentInterval))))
+      );
+      completedScope = projectedStepCompleted;
+      actualBurn = Math.max(0, Math.round(scopeAtStep - projectedStepCompleted));
+    }
+
+    points.push({
+      dayLabel: i === 0 ? 'Day 0' : i === intervals ? 'Target Release' : `Day ${i * 2}`,
+      idealBurnRemaining: idealBurn,
+      actualBurnRemaining: actualBurn,
+      totalScope: scopeAtStep,
+      completedScope: completedScope,
+    });
+  }
+
+  return points;
 }

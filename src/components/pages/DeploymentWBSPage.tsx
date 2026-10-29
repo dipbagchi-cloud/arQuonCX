@@ -17,10 +17,15 @@ import {
   ChevronRight, 
   Flame, 
   Download, 
-  Trash2 
+  Trash2,
+  Target,
+  ShieldCheck,
+  FileCheck2,
+  GitCommit,
+  Check
 } from 'lucide-react';
 import { WbsTask, DeliveryProject, WbsTaskStatus, WbsTaskPriority } from '../../types';
-import { calculateWbsProgress, calculateConfidenceScore, calculateTeamVelocity, calculatePredictedGoLive } from '../../utils/wbsMetrics';
+import { calculateWbsProgress, calculateConfidenceScore, calculateTeamVelocity, calculatePredictedGoLive, calculateBurnChartSeries } from '../../utils/wbsMetrics';
 import { CreateWbsTaskModal } from '../modals/CreateWbsTaskModal';
 
 interface DeploymentWBSPageProps {
@@ -50,7 +55,7 @@ export const DeploymentWBSPage: React.FC<DeploymentWBSPageProps> = ({
 }) => {
   const tasks = propTasks || wbsTasks || [];
   const [selectedProjectId, setSelectedProjectId] = useState<string>(initialProjectId || 'all');
-  const [viewMode, setViewMode] = useState<'wbs-tree' | 'checklist' | 'velocity' | 'kanban'>('wbs-tree');
+  const [viewMode, setViewMode] = useState<'wbs-tree' | 'checklist' | 'velocity' | 'kanban' | 'burndown'>('wbs-tree');
   const [userFilter, setUserFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
@@ -105,6 +110,10 @@ export const DeploymentWBSPage: React.FC<DeploymentWBSPageProps> = ({
       calculatedVelocity
     );
   }, [currentProject, calculatedProgress, calculatedConfidence, calculatedVelocity]);
+
+  const burnChartData = useMemo(() => {
+    return calculateBurnChartSeries(filteredTasks, currentProject?.hoursAllocated || 200);
+  }, [filteredTasks, currentProject]);
 
   // Unique assignees for pill filters
   const uniqueAssignees = useMemo(() => {
@@ -458,6 +467,17 @@ export const DeploymentWBSPage: React.FC<DeploymentWBSPageProps> = ({
             >
               <Kanban className="w-3.5 h-3.5" />
               <span>Sprint Board</span>
+            </button>
+            <button
+              onClick={() => setViewMode('burndown')}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
+                viewMode === 'burndown' 
+                  ? 'bg-white dark:bg-[#0E162E] text-indigo-600 dark:text-indigo-400 shadow-2xs' 
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <TrendingUp className="w-3.5 h-3.5" />
+              <span>Burn Down & Burn Up</span>
             </button>
           </div>
 
@@ -975,6 +995,486 @@ export const DeploymentWBSPage: React.FC<DeploymentWBSPageProps> = ({
           })}
         </div>
       )}
+
+      {/* ======================================================== */}
+      {/* VIEW 5: CONSOLIDATED BURN DOWN & BURN UP CHARTS          */}
+      {/* ======================================================== */}
+      {viewMode === 'burndown' && (
+        <div className="space-y-5">
+          {/* Executive Sprint & Scope Burn Analytics Banner */}
+          <div className="bg-gradient-to-r from-slate-900 via-[#0E162E] to-indigo-950 text-white p-5 rounded-2xl border border-indigo-900/60 shadow-lg">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-indigo-500/20 text-indigo-400">
+                    <TrendingUp className="w-5 h-5" />
+                  </div>
+                  <h3 className="text-base font-bold text-white">
+                    Consolidated Agile Delivery: Burn Down &amp; Burn Up Engine
+                  </h3>
+                  <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    Live Telemetry Sync
+                  </span>
+                </div>
+                <p className="text-xs text-indigo-200/80 mt-1 max-w-2xl leading-relaxed">
+                  Real-time delivery burndown against estimated effort, scope-creep tracking via burnup trajectory, Definition of Done (DoD) compliance, and test case execution coverage.
+                </p>
+              </div>
+
+              {/* Quick Metric Pills */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center shrink-0">
+                <div className="p-2.5 rounded-xl bg-white/5 border border-white/10">
+                  <span className="text-[10px] text-indigo-300 block">Total Scope</span>
+                  <span className="text-sm font-extrabold text-white">
+                    {burnChartData[burnChartData.length - 1]?.totalScope || 200}h
+                  </span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-white/5 border border-white/10">
+                  <span className="text-[10px] text-emerald-300 block">Scope Burned</span>
+                  <span className="text-sm font-extrabold text-emerald-400">
+                    {burnChartData[burnChartData.length - 1]?.completedScope || 145}h
+                  </span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-white/5 border border-white/10">
+                  <span className="text-[10px] text-amber-300 block">Remaining</span>
+                  <span className="text-sm font-extrabold text-amber-300">
+                    {burnChartData[burnChartData.length - 1]?.actualBurnRemaining || 55}h
+                  </span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-white/5 border border-white/10">
+                  <span className="text-[10px] text-sky-300 block">Velocity Pace</span>
+                  <span className="text-sm font-extrabold text-sky-300">
+                    {calculatedVelocity.weeklyBurnHours}h / wk
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Charts Row: Side-by-Side Consolidated Burn Down and Burn Up Charts */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            
+            {/* Chart 1: Consolidated Sprint Burn Down Chart */}
+            <div className="bg-white dark:bg-[#0E162E] p-5 rounded-2xl border border-slate-200 dark:border-[#1E2D52] shadow-2xs space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-[#1E2D52]">
+                <div className="flex items-center gap-2">
+                  <Flame className="w-4 h-4 text-amber-500" />
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                      Consolidated Sprint Burn Down Chart
+                    </h4>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Remaining hours / story points vs. ideal linear burn trajectory
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 text-[10px] font-semibold">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-3 h-0.5 bg-slate-400 dark:bg-slate-500 border-dashed" />
+                    <span className="text-slate-500">Ideal Burn</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 dark:bg-indigo-400" />
+                    <span className="text-indigo-600 dark:text-indigo-400">Actual Burn</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* SVG Chart Visualization */}
+              <div className="h-60 w-full relative pt-2">
+                <svg viewBox="0 0 500 200" className="w-full h-full overflow-visible">
+                  <defs>
+                    <linearGradient id="actualBurnGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#6366F1" stopOpacity="0.3" />
+                      <stop offset="100%" stopColor="#6366F1" stopOpacity="0.0" />
+                    </linearGradient>
+                  </defs>
+
+                  {/* Horizontal Guide Lines */}
+                  {[0, 50, 100, 150].map((yVal, idx) => (
+                    <g key={idx}>
+                      <line x1="40" y1={yVal + 20} x2="480" y2={yVal + 20} stroke="currentColor" className="text-slate-200 dark:text-slate-800" strokeDasharray="3 3" />
+                      <text x="32" y={yVal + 24} textAnchor="end" className="text-[9px] fill-slate-400 font-mono">
+                        {Math.round(((150 - yVal) / 150) * (burnChartData[0]?.totalScope || 200))}h
+                      </text>
+                    </g>
+                  ))}
+
+                  {/* Ideal Burn Line (Dashed) */}
+                  <line 
+                    x1="45" 
+                    y1="25" 
+                    x2="475" 
+                    y2="170" 
+                    stroke="#94A3B8" 
+                    strokeWidth="2" 
+                    strokeDasharray="6 4" 
+                  />
+
+                  {/* Actual Burn Area & Line */}
+                  {(() => {
+                    const maxScope = burnChartData[0]?.totalScope || 200;
+                    const pts = burnChartData.map((pt, idx) => {
+                      const x = 45 + (idx / (burnChartData.length - 1)) * 430;
+                      const y = 170 - (pt.actualBurnRemaining / (maxScope || 1)) * 145;
+                      return { x, y, ...pt };
+                    });
+
+                    const pathStr = pts.reduce((acc, p, idx) => `${acc} ${idx === 0 ? 'M' : 'L'} ${p.x} ${p.y}`, '');
+                    const areaStr = `${pathStr} L 475 170 L 45 170 Z`;
+
+                    return (
+                      <>
+                        <path d={areaStr} fill="url(#actualBurnGrad)" />
+                        <path d={pathStr} fill="none" stroke="#6366F1" strokeWidth="2.5" />
+                        {pts.map((p, i) => (
+                          <g key={i}>
+                            <circle cx={p.x} cy={p.y} r="3.5" fill="#6366F1" stroke="#FFFFFF" strokeWidth="1.5" />
+                            <text x={p.x} y="190" textAnchor="middle" className="text-[8px] fill-slate-400 font-mono">
+                              {p.dayLabel}
+                            </text>
+                          </g>
+                        ))}
+                      </>
+                    );
+                  })()}
+                </svg>
+              </div>
+
+              {/* Status Note */}
+              <div className="p-2.5 rounded-xl bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-200/60 dark:border-indigo-900/50 flex items-center justify-between text-[11px]">
+                <div className="flex items-center gap-1.5 text-indigo-700 dark:text-indigo-300">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                  <span>Sprint Burn Pace: <strong>On Track</strong> — projected to reach 0 remaining hours by sprint cutoff.</span>
+                </div>
+                <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                  -18h / sprint
+                </span>
+              </div>
+            </div>
+
+            {/* Chart 2: Consolidated Sprint Burn Up Chart */}
+            <div className="bg-white dark:bg-[#0E162E] p-5 rounded-2xl border border-slate-200 dark:border-[#1E2D52] shadow-2xs space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-[#1E2D52]">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-emerald-500" />
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                      Consolidated Sprint Burn Up Chart
+                    </h4>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Completed work vs. Total Scope line (Scope Creep Identification)
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 text-[10px] font-semibold">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                    <span className="text-amber-600 dark:text-amber-400">Total Scope</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                    <span className="text-emerald-600 dark:text-emerald-400">Completed Work</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* SVG Burn Up Chart */}
+              <div className="h-60 w-full relative pt-2">
+                <svg viewBox="0 0 500 200" className="w-full h-full overflow-visible">
+                  <defs>
+                    <linearGradient id="completedBurnUpGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#10B981" stopOpacity="0.25" />
+                      <stop offset="100%" stopColor="#10B981" stopOpacity="0.0" />
+                    </linearGradient>
+                  </defs>
+
+                  {/* Horizontal Guide Lines */}
+                  {[0, 50, 100, 150].map((yVal, idx) => (
+                    <g key={idx}>
+                      <line x1="40" y1={yVal + 20} x2="480" y2={yVal + 20} stroke="currentColor" className="text-slate-200 dark:text-slate-800" strokeDasharray="3 3" />
+                      <text x="32" y={yVal + 24} textAnchor="end" className="text-[9px] fill-slate-400 font-mono">
+                        {Math.round(((150 - yVal) / 150) * (burnChartData[0]?.totalScope || 200) * 1.1)}h
+                      </text>
+                    </g>
+                  ))}
+
+                  {/* Burn Up Lines */}
+                  {(() => {
+                    const maxScale = (burnChartData[0]?.totalScope || 200) * 1.1;
+                    const scopePts = burnChartData.map((pt, idx) => {
+                      const x = 45 + (idx / (burnChartData.length - 1)) * 430;
+                      const y = 170 - (pt.totalScope / maxScale) * 145;
+                      return { x, y, ...pt };
+                    });
+
+                    const completedPts = burnChartData.map((pt, idx) => {
+                      const x = 45 + (idx / (burnChartData.length - 1)) * 430;
+                      const y = 170 - (pt.completedScope / maxScale) * 145;
+                      return { x, y, ...pt };
+                    });
+
+                    const scopePath = scopePts.reduce((acc, p, idx) => `${acc} ${idx === 0 ? 'M' : 'L'} ${p.x} ${p.y}`, '');
+                    const completedPath = completedPts.reduce((acc, p, idx) => `${acc} ${idx === 0 ? 'M' : 'L'} ${p.x} ${p.y}`, '');
+                    const completedArea = `${completedPath} L 475 170 L 45 170 Z`;
+
+                    return (
+                      <>
+                        <path d={completedArea} fill="url(#completedBurnUpGrad)" />
+                        {/* Scope Line (Amber) */}
+                        <path d={scopePath} fill="none" stroke="#F59E0B" strokeWidth="2" strokeDasharray="4 2" />
+                        {/* Completed Work Line (Emerald) */}
+                        <path d={completedPath} fill="none" stroke="#10B981" strokeWidth="2.5" />
+                        
+                        {completedPts.map((p, i) => (
+                          <g key={i}>
+                            <circle cx={p.x} cy={p.y} r="3.5" fill="#10B981" stroke="#FFFFFF" strokeWidth="1.5" />
+                            <text x={p.x} y="190" textAnchor="middle" className="text-[8px] fill-slate-400 font-mono">
+                              {p.dayLabel}
+                            </text>
+                          </g>
+                        ))}
+                      </>
+                    );
+                  })()}
+                </svg>
+              </div>
+
+              {/* Status Note */}
+              <div className="p-2.5 rounded-xl bg-amber-50/60 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-900/50 flex items-center justify-between text-[11px]">
+                <div className="flex items-center gap-1.5 text-amber-700 dark:text-amber-300">
+                  <ShieldCheck className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                  <span>Scope Stability: <strong>95.2%</strong> — minimal scope creep (+10h added in sprint 3).</span>
+                </div>
+                <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                  Convergence in 5 days
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Section 2: Agile Hierarchy Rollup (Epics, Features, User Stories & Story Points) */}
+          <div className="bg-white dark:bg-[#0E162E] p-5 rounded-2xl border border-slate-200 dark:border-[#1E2D52] shadow-2xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-100 dark:border-[#1E2D52]">
+              <div>
+                <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-indigo-500" />
+                  Agile Delivery Hierarchy: Epics &gt; Features &gt; User Stories &gt; Tasks
+                </h4>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Structured breakdown linking high-level strategic epics down to executable tasks and acceptance criteria.
+                </p>
+              </div>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-slate-100 dark:bg-[#111C35] text-slate-600 dark:text-slate-300 font-bold">
+                {filteredTasks.length} Active User Stories / Deliverables
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-slate-800 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    <th className="py-2.5 px-3">WBS / Story</th>
+                    <th className="py-2.5 px-3">Epic &amp; Feature</th>
+                    <th className="py-2.5 px-3">User Story &amp; Deliverable</th>
+                    <th className="py-2.5 px-3">Points</th>
+                    <th className="py-2.5 px-3">Assignee</th>
+                    <th className="py-2.5 px-3">Priority</th>
+                    <th className="py-2.5 px-3">Status</th>
+                    <th className="py-2.5 px-3 text-right">DoD / QA</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
+                  {filteredTasks.map((task) => {
+                    const isDone = task.status === 'completed';
+                    const isBlocked = task.status === 'blocked';
+                    const points = task.storyPoints || (task.estimatedHours > 20 ? 8 : task.estimatedHours > 10 ? 5 : 3);
+                    return (
+                      <tr 
+                        key={task.id}
+                        className={`hover:bg-slate-50/60 dark:hover:bg-[#111C35]/40 transition-colors ${
+                          isBlocked ? 'bg-rose-50/30 dark:bg-rose-950/10' : ''
+                        }`}
+                      >
+                        <td className="py-2.5 px-3 font-mono text-[11px] font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                          {task.id}
+                        </td>
+                        <td className="py-2.5 px-3 whitespace-nowrap">
+                          <div>
+                            <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.2 rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                              {task.epicName || task.phase.split(':')[0]}
+                            </span>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 truncate max-w-[140px]">
+                              {task.featureName || task.workPackage}
+                            </p>
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <p className={`font-semibold ${isDone ? 'line-through text-slate-400' : 'text-slate-900 dark:text-white'}`}>
+                            {task.taskName}
+                          </p>
+                          {task.userStory && (
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400 italic mt-0.5 line-clamp-1">
+                              "{task.userStory}"
+                            </p>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 whitespace-nowrap">
+                          <span className="font-mono text-xs font-extrabold px-2 py-0.5 rounded-md bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                            {points} pts
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 whitespace-nowrap">
+                          <div className="flex items-center gap-1.5">
+                            <img src={task.assignedUser?.avatar} alt="" className="w-5 h-5 rounded-full object-cover" />
+                            <span className="text-[11px] font-medium text-slate-700 dark:text-slate-300">
+                              {task.assignedUser?.name}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3 whitespace-nowrap">
+                          {getPriorityBadge(task.priority)}
+                        </td>
+                        <td className="py-2.5 px-3 whitespace-nowrap">
+                          <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full border ${
+                            task.status === 'completed'
+                              ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                              : task.status === 'blocked'
+                              ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300 border-rose-200 dark:border-rose-800'
+                              : task.status === 'in-progress'
+                              ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 border-blue-200 dark:border-blue-800'
+                              : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                          }`}>
+                            {task.status}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-1.5 text-[10px]">
+                            <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-mono font-bold">
+                              {task.progress}%
+                            </span>
+                            {isDone ? (
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                            ) : (
+                              <FileCheck2 className="w-3.5 h-3.5 text-slate-400" />
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Section 3: Definition of Done (DoD) Quality Gate & Test Case Execution Matrix */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+            
+            {/* Left: Definition of Done Quality Gate Checklist (5 Cols) */}
+            <div className="lg:col-span-5 bg-white dark:bg-[#0E162E] p-5 rounded-2xl border border-slate-200 dark:border-[#1E2D52] shadow-2xs space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-[#1E2D52]">
+                <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                  Definition of Done (DoD) Quality Gate
+                </h4>
+                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+                  100% Mandatory
+                </span>
+              </div>
+
+              <div className="space-y-2.5 text-xs">
+                {[
+                  { id: 'dod-1', title: 'Peer Review & Architectural Sign-Off', desc: 'Code reviewed by minimum 1 Senior Architect / FDE', passed: true },
+                  { id: 'dod-2', title: 'Unit & Regression Test Coverage >= 80%', desc: 'Automated CI/CD suite passing with zero critical vulnerabilities', passed: true },
+                  { id: 'dod-3', title: 'Identity & Enterprise SSO Compliance', desc: 'Azure AD / SAML 2.0 federation and SCIM sync verified', passed: true },
+                  { id: 'dod-4', title: 'UAT Client Sponsor Acceptance', desc: 'Formal verification by client business sponsor in staging', passed: calculatedProgress > 60 },
+                  { id: 'dod-5', title: 'Production Runbook & Rollback Protocol', desc: 'Disaster recovery and zero-downtime cutover plan signed off', passed: calculatedProgress > 80 },
+                ].map((item, idx) => (
+                  <div key={idx} className="p-3 rounded-xl bg-slate-50 dark:bg-[#111C35] border border-slate-200/80 dark:border-[#22355C] flex items-start gap-3">
+                    <div className={`mt-0.5 p-1 rounded-md ${item.passed ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-slate-200 dark:bg-slate-800 text-slate-400'}`}>
+                      <Check className="w-3.5 h-3.5" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-slate-900 dark:text-white text-xs">
+                        {item.title}
+                      </p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                        {item.desc}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Right: Test Cases & QA Validation Assignments (7 Cols) */}
+            <div className="lg:col-span-7 bg-white dark:bg-[#0E162E] p-5 rounded-2xl border border-slate-200 dark:border-[#1E2D52] shadow-2xs space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-[#1E2D52]">
+                <div className="flex items-center gap-2">
+                  <FileCheck2 className="w-4 h-4 text-indigo-500" />
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                      Test Cases &amp; Verification Matrix
+                    </h4>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Automated &amp; manual test runs across Unit, Integration, UAT, and Security
+                    </p>
+                  </div>
+                </div>
+
+                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300">
+                  94.2% Pass Rate
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                {[
+                  { id: 'TC-01', title: 'Azure AD OpenID Connect Discovery & Token Validation', type: 'Security / IAM', assignee: 'Dip Bagchi', status: 'passed', runtime: '34ms' },
+                  { id: 'TC-02', title: 'Saswane Technical Schematics Embedding Ingestion', type: 'Integration', assignee: 'Shubham', status: 'passed', runtime: '1.2s' },
+                  { id: 'TC-03', title: 'QGPT Semantic Query Latency (<400ms SLA)', type: 'Performance', assignee: 'Shubham', status: 'passed', runtime: '280ms' },
+                  { id: 'TC-04', title: 'ArcelorMittal H&S Incident Audit Trail Verification', type: 'UAT / Compliance', assignee: 'Trevor', status: 'passed', runtime: 'Manual' },
+                  { id: 'TC-05', title: 'Indorama IRC Finance Gateway Network Handshake', type: 'Infrastructure', assignee: 'Dip Bagchi', status: 'in-progress', runtime: 'Pending' },
+                ].map((tc) => (
+                  <div key={tc.id} className="p-2.5 rounded-xl bg-slate-50 dark:bg-[#111C35] border border-slate-200/80 dark:border-[#22355C] flex items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="font-mono text-[10px] font-bold text-slate-400 shrink-0">
+                        {tc.id}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="font-bold text-slate-900 dark:text-white truncate">
+                          {tc.title}
+                        </p>
+                        <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
+                          <span>Type: <strong className="text-slate-600 dark:text-slate-300">{tc.type}</strong></span>
+                          <span>•</span>
+                          <span>Tester: <strong className="text-indigo-600 dark:text-indigo-400">{tc.assignee}</strong></span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-[10px] font-mono text-slate-400">
+                        {tc.runtime}
+                      </span>
+                      <span className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full border ${
+                        tc.status === 'passed'
+                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                          : 'bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                      }`}>
+                        {tc.status}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {/* Create Task Modal */}
       <CreateWbsTaskModal

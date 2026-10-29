@@ -42,6 +42,7 @@ import { useFrontendMeta } from '../../context/FrontendMetaContext';
 import { StaffMember, AuditLogEntry, FeatureFlagConfig, NavigationTab, AzureAdConfig, AzureAdGroupMapping, AzureAdTestResult } from '../../types';
 import { api } from '../../api/client';
 import { MicrosoftLogoSvg } from '../modals/AzureAdSsoModal';
+import { RBACBanner } from '../common/RBACBanner';
 
 export const AdminPortalPage: React.FC = () => {
   const { user, role, can, switchRole } = useAuth();
@@ -492,6 +493,9 @@ export const AdminPortalPage: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Dynamic RBAC Role & Persona Access Control Simulator */}
+      <RBACBanner />
 
       {/* Navigation Tabs */}
       <div className="flex items-center gap-1 bg-white dark:bg-[#0B1228] p-1.5 rounded-xl border border-slate-200 dark:border-[#1E2D52] overflow-x-auto text-xs font-semibold">

@@ -3,7 +3,6 @@ import { AlertTriangle } from 'lucide-react';
 import { Sidebar } from './components/layout/Sidebar';
 import { Topbar } from './components/layout/Topbar';
 import { AnnouncementBanner } from './components/layout/AnnouncementBanner';
-import { RBACBanner } from './components/common/RBACBanner';
 import { ResourceCenterWidget } from './components/layout/ResourceCenterWidget';
 import { OverviewPage } from './components/pages/OverviewPage';
 import { AccountsPage } from './components/pages/AccountsPage';
@@ -554,9 +553,6 @@ export function App() {
           {/* Scrollable Page Body */}
           <main className="flex-1 overflow-y-auto p-4 sm:p-5 md:p-6 text-[13px]">
             <div className="max-w-7xl mx-auto space-y-4">
-              {/* Dynamic RBAC Role & Persona Access Control Banner */}
-              <RBACBanner />
-
               {/* Maintenance Mode Warning Notice if active */}
               {meta.maintenanceMode && (
                 <div className="p-3 bg-amber-500/15 border border-amber-500/40 rounded-xl flex items-center gap-2.5 text-xs text-amber-800 dark:text-amber-300 font-medium">

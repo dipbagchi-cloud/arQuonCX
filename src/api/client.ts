@@ -330,5 +330,9 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(data),
       }),
+    cleanTestData: () =>
+      request<{ success: boolean; message: string; config: AdoConfig; projects: DeliveryProject[]; tasksCount: number }>('/integrations/ado/clean', {
+        method: 'POST',
+      }),
   },
 };

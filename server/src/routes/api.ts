@@ -85,6 +85,7 @@ router.post('/integrations/ado/projects', requirePermission('account:read'), Ado
 router.post('/integrations/ado/sync-projects', requirePermission('account:write'), Ado.syncAdoProjects);
 router.post('/integrations/ado/preview', requirePermission('account:read'), Ado.previewAdoWorkItems);
 router.post('/integrations/ado/sync', requirePermission('account:write'), Ado.syncAdoWorkItems);
+router.post('/integrations/ado/clean', requirePermission('account:write'), Ado.cleanAdoTestData);
 
 // Executive Delivery & C-Suite Briefing
 router.get('/delivery/projects', requirePermission('account:read'), Delivery.getDeliveryProjects);

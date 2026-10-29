@@ -5,6 +5,10 @@ import { DeliveryProject } from '../../../src/types';
 // In-memory state for live mutation support during server lifetime
 export let deliveryProjects: DeliveryProject[] = [...MOCK_DELIVERY_PROJECTS];
 
+export function resetDeliveryProjects(): void {
+  deliveryProjects = [...MOCK_DELIVERY_PROJECTS];
+}
+
 
 /**
  * GET /api/v1/delivery/projects

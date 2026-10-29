@@ -197,6 +197,10 @@ let auditLogs = [
   },
 ];
 
+export function resetAuditLogs(): void {
+  auditLogs = auditLogs.filter(a => !a.action.startsWith('ADO_') && !a.details.includes('test'));
+}
+
 export function addAuditLog(entry: {
   action: string;
   actor: string;

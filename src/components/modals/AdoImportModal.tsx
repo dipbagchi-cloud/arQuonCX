@@ -20,7 +20,8 @@ import {
   FileSpreadsheet,
   Download,
   Building2,
-  Sparkles
+  Sparkles,
+  Trash2
 } from 'lucide-react';
 import { api } from '../../api/client';
 import { 
@@ -80,9 +81,11 @@ export const AdoImportModal: React.FC<AdoImportModalProps> = ({
   const [isTesting, setIsTesting] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isSyncingProjects, setIsSyncingProjects] = useState(false);
+  const [isCleaning, setIsCleaning] = useState(false);
   const [testResult, setTestResult] = useState<AdoTestResult | null>(null);
   const [syncSuccess, setSyncSuccess] = useState<AdoSyncResult | null>(null);
   const [projectSyncNotice, setProjectSyncNotice] = useState<string | null>(null);
+  const [cleanSuccessNotice, setCleanSuccessNotice] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Sync selectedProjectId with prop if changed
@@ -98,6 +101,7 @@ export const AdoImportModal: React.FC<AdoImportModalProps> = ({
       loadConfigAndProjects();
       setSyncSuccess(null);
       setErrorMessage(null);
+      setCleanSuccessNotice(null);
     }
   }, [isOpen]);
 
@@ -112,8 +116,8 @@ export const AdoImportModal: React.FC<AdoImportModalProps> = ({
       const res = await api.ado.getConfig();
       if (res.success && res.config) {
         setConfig(res.config);
-        setOrgUrl(res.config.organizationUrl || 'https://dev.azure.com/arQuon-Enterprise');
-        setProjectName(res.config.projectName || 'arQuonCX-GlobalDeployments');
+        setOrgUrl(res.config.organizationUrl || '');
+        setProjectName(res.config.projectName || '');
       }
 
       if (availableProjects.length === 0) {
@@ -312,6 +316,44 @@ export const AdoImportModal: React.FC<AdoImportModalProps> = ({
     }
   };
 
+  // Clean all test data, imported work items, test projects & reset credentials
+  const handleCleanTestData = async () => {
+    if (!window.confirm('Are you sure you want to clean all test data, imported ADO work items, and test projects? Baseline enterprise accounts will be preserved.')) {
+      return;
+    }
+
+    setIsCleaning(true);
+    setErrorMessage(null);
+    setProjectSyncNotice(null);
+    setCleanSuccessNotice(null);
+    try {
+      const res = await api.ado.cleanTestData();
+      if (res.success) {
+        setConfig(res.config);
+        setOrgUrl('');
+        setProjectName('');
+        setPatToken('');
+        setPreviewItems([]);
+        setSelectedItemIds([]);
+        setRemoteProjects([]);
+        setTestResult(null);
+        setSyncSuccess(null);
+        setIsLiveAdo(false);
+        setCleanSuccessNotice(res.message || 'All test data, mock backlogs, and Azure DevOps credentials have been wiped clean.');
+        if (res.projects) {
+          setPortfolioProjects(res.projects);
+          if (onProjectsSynced) {
+            onProjectsSynced(res.projects);
+          }
+        }
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Failed to clean test data');
+    } finally {
+      setIsCleaning(false);
+    }
+  };
+
   const toggleSelectAll = () => {
     const visibleIds = filteredItems.map(i => i.id);
     const allSelected = visibleIds.every(id => selectedItemIds.includes(id));
@@ -443,11 +485,31 @@ export const AdoImportModal: React.FC<AdoImportModalProps> = ({
               <RefreshCw className={`w-3 h-3 ${isSyncingProjects ? 'animate-spin' : ''}`} />
               <span>Sync ADO Projects</span>
             </button>
+            <button
+              type="button"
+              onClick={handleCleanTestData}
+              disabled={isCleaning}
+              className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 dark:bg-rose-950/60 dark:text-rose-300 dark:hover:bg-rose-900/60 border border-rose-200 dark:border-rose-800 transition-colors cursor-pointer"
+              title="Purge all test work items, test projects and reset ADO integration state"
+            >
+              {isCleaning ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+              <span>Clean All Test Data</span>
+            </button>
           </div>
         </div>
 
         {/* Content Body */}
         <div className="p-6 overflow-y-auto space-y-4 flex-1">
+          {cleanSuccessNotice && (
+            <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 flex items-start gap-3 text-sm text-amber-900 dark:text-amber-200">
+              <CheckCircle2 className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold">Test Data Cleaned</p>
+                <p className="text-xs mt-0.5 opacity-90 leading-relaxed">{cleanSuccessNotice}</p>
+              </div>
+            </div>
+          )}
+
           {errorMessage && (
             <div className="p-3.5 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 flex items-start gap-3 text-sm text-red-800 dark:text-red-300">
               <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
@@ -647,7 +709,22 @@ export const AdoImportModal: React.FC<AdoImportModalProps> = ({
                       ) : filteredItems.length === 0 ? (
                         <tr>
                           <td colSpan={8} className="p-8 text-center text-slate-500 dark:text-slate-400">
-                            No work items found matching this selection in Azure DevOps.
+                            <div className="max-w-md mx-auto space-y-2">
+                              <Database className="w-8 h-8 mx-auto text-slate-400 dark:text-slate-500 opacity-60" />
+                              <div className="font-semibold text-sm text-slate-700 dark:text-slate-200">
+                                No Work Items Found
+                              </div>
+                              <p className="text-xs text-slate-500 dark:text-slate-400">
+                                All test data is clean. Configure your live Azure DevOps organization URL and Personal Access Token (PAT) in the Connection tab to discover projects and stage work items.
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => setActiveTab('config')}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 mt-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer"
+                              >
+                                Configure ADO Connection
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ) : (
@@ -895,7 +972,7 @@ export const AdoImportModal: React.FC<AdoImportModalProps> = ({
                 </div>
               )}
 
-              <div className="flex items-center gap-3 pt-2">
+              <div className="flex flex-wrap items-center gap-3 pt-2">
                 <button
                   type="button"
                   onClick={handleTestConnection}
@@ -922,6 +999,15 @@ export const AdoImportModal: React.FC<AdoImportModalProps> = ({
                 >
                   {isSyncingProjects ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Database className="w-3.5 h-3.5" />}
                   Sync All Projects
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCleanTestData}
+                  disabled={isCleaning}
+                  className="px-4 py-2 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer sm:ml-auto"
+                >
+                  {isCleaning ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                  Clean All Test Data
                 </button>
               </div>
             </div>

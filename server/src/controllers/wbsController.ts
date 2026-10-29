@@ -20,6 +20,10 @@ export function setWbsTasksList(tasks: WbsTask[]): void {
   wbsTasks = tasks;
 }
 
+export function resetWbsTasks(): void {
+  wbsTasks = [...MOCK_WBS_TASKS];
+}
+
 /**
  * Synchronize project's executive metrics from WBS tasks.
  */

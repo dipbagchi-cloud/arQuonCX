@@ -81,6 +81,8 @@ router.post('/integrations/keys', requirePermission('api_keys:manage'), Integrat
 router.get('/integrations/ado/config', requirePermission('account:read'), Ado.getAdoConfig);
 router.put('/integrations/ado/config', requirePermission('integrations:manage'), Ado.updateAdoConfig);
 router.post('/integrations/ado/test', requirePermission('integrations:manage'), Ado.testAdoConnection);
+router.post('/integrations/ado/projects', requirePermission('account:read'), Ado.listAdoProjects);
+router.post('/integrations/ado/sync-projects', requirePermission('account:write'), Ado.syncAdoProjects);
 router.post('/integrations/ado/preview', requirePermission('account:read'), Ado.previewAdoWorkItems);
 router.post('/integrations/ado/sync', requirePermission('account:write'), Ado.syncAdoWorkItems);
 

@@ -608,6 +608,7 @@ export function App() {
                 onNavigateToBriefing={() => setCurrentTab('delivery-briefing')}
                 initialProjectId={selectedWbsProjectId}
                 onSyncAdoTasks={handleAdoSyncTasks}
+                onProjectsSynced={setDeliveryProjects}
               />
             )}
 

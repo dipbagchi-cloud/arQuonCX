@@ -42,6 +42,7 @@ interface DeploymentWBSPageProps {
   onNavigateToBriefing?: () => void;
   initialProjectId?: string;
   onSyncAdoTasks?: (tasks: WbsTask[], updatedProject?: DeliveryProject) => void;
+  onProjectsSynced?: (projects: DeliveryProject[]) => void;
 }
 
 export const DeploymentWBSPage: React.FC<DeploymentWBSPageProps> = ({
@@ -56,6 +57,7 @@ export const DeploymentWBSPage: React.FC<DeploymentWBSPageProps> = ({
   onNavigateToBriefing,
   initialProjectId,
   onSyncAdoTasks,
+  onProjectsSynced,
 }) => {
   const tasks = propTasks || wbsTasks || [];
   const [selectedProjectId, setSelectedProjectId] = useState<string>(initialProjectId || 'all');
@@ -1853,7 +1855,9 @@ export const DeploymentWBSPage: React.FC<DeploymentWBSPageProps> = ({
       <AdoImportModal
         isOpen={isAdoModalOpen}
         onClose={() => setIsAdoModalOpen(false)}
-        targetProjectId={selectedProjectId !== 'all' ? selectedProjectId : 'proj-1'}
+        targetProjectId={selectedProjectId !== 'all' ? selectedProjectId : (projects[0]?.id || 'proj-1')}
+        availableProjects={projects}
+        onProjectsSynced={onProjectsSynced}
         onSyncComplete={(result, updatedProject) => {
           if (onSyncAdoTasks) {
             onSyncAdoTasks(result.tasks, updatedProject);

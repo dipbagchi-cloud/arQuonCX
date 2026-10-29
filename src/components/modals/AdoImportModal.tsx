@@ -17,7 +17,10 @@ import {
   ShieldCheck,
   Bug,
   ListTodo,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Download,
+  Building2,
+  Sparkles
 } from 'lucide-react';
 import { api } from '../../api/client';
 import { 
@@ -33,6 +36,8 @@ interface AdoImportModalProps {
   isOpen: boolean;
   onClose: () => void;
   targetProjectId?: string;
+  availableProjects?: DeliveryProject[];
+  onProjectsSynced?: (projects: DeliveryProject[]) => void;
   onSyncComplete?: (result: AdoSyncResult, updatedProject?: DeliveryProject) => void;
 }
 
@@ -47,17 +52,23 @@ export const AdoImportModal: React.FC<AdoImportModalProps> = ({
   isOpen,
   onClose,
   targetProjectId = 'proj-1',
+  availableProjects = [],
+  onProjectsSynced,
   onSyncComplete,
 }) => {
   const [activeTab, setActiveTab] = useState<'preview' | 'config'>('preview');
   const [selectedProjectId, setSelectedProjectId] = useState<string>(targetProjectId);
+  const [selectedProjectName, setSelectedProjectName] = useState<string>('');
   const [syncMode, setSyncMode] = useState<'merge' | 'replace'>('merge');
   
   // Data states
+  const [portfolioProjects, setPortfolioProjects] = useState<DeliveryProject[]>(availableProjects);
   const [config, setConfig] = useState<AdoConfig | null>(null);
+  const [remoteProjects, setRemoteProjects] = useState<Array<{ id: string; name: string; description?: string }>>([]);
   const [previewItems, setPreviewItems] = useState<AdoWorkItemPreview[]>([]);
   const [selectedItemIds, setSelectedItemIds] = useState<number[]>([]);
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('all');
+  const [isLiveAdo, setIsLiveAdo] = useState(false);
   
   // Form states
   const [orgUrl, setOrgUrl] = useState('');
@@ -68,8 +79,10 @@ export const AdoImportModal: React.FC<AdoImportModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isSyncingProjects, setIsSyncingProjects] = useState(false);
   const [testResult, setTestResult] = useState<AdoTestResult | null>(null);
   const [syncSuccess, setSyncSuccess] = useState<AdoSyncResult | null>(null);
+  const [projectSyncNotice, setProjectSyncNotice] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Sync selectedProjectId with prop if changed
@@ -82,14 +95,19 @@ export const AdoImportModal: React.FC<AdoImportModalProps> = ({
   // Load config & preview data on modal open or project switch
   useEffect(() => {
     if (isOpen) {
-      loadConfig();
-      loadPreview(selectedProjectId);
+      loadConfigAndProjects();
       setSyncSuccess(null);
       setErrorMessage(null);
     }
-  }, [isOpen, selectedProjectId]);
+  }, [isOpen]);
 
-  const loadConfig = async () => {
+  useEffect(() => {
+    if (isOpen && selectedProjectId) {
+      loadPreview(selectedProjectId, selectedProjectName);
+    }
+  }, [selectedProjectId, selectedProjectName]);
+
+  const loadConfigAndProjects = async () => {
     try {
       const res = await api.ado.getConfig();
       if (res.success && res.config) {
@@ -97,19 +115,74 @@ export const AdoImportModal: React.FC<AdoImportModalProps> = ({
         setOrgUrl(res.config.organizationUrl || 'https://dev.azure.com/arQuon-Enterprise');
         setProjectName(res.config.projectName || 'arQuonCX-GlobalDeployments');
       }
+
+      if (availableProjects.length === 0) {
+        try {
+          const pRes = await api.delivery.list();
+          if (pRes.success && Array.isArray(pRes.projects)) {
+            setPortfolioProjects(pRes.projects);
+          }
+        } catch (e) {
+          console.warn('Could not fetch delivery projects:', e);
+        }
+      }
+
+      // If PAT is already configured, fetch live remote projects
+      try {
+        const projRes = await api.ado.listProjects();
+        if (projRes.success && Array.isArray(projRes.projects) && projRes.projects.length > 0) {
+          setRemoteProjects(projRes.projects);
+          if (projRes.isLiveAdo) {
+            setIsLiveAdo(true);
+          }
+        }
+      } catch (err) {
+        console.warn('Could not auto-list remote projects:', err);
+      }
     } catch (err: any) {
       console.warn('Could not load ADO config:', err.message);
     }
   };
 
-  const loadPreview = async (projId: string) => {
+  const handleOrgUrlChange = (value: string) => {
+    setOrgUrl(value);
+    // If user pasted a full URL like https://dev.azure.com/org/project, auto-extract
+    try {
+      let clean = value.trim();
+      if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
+        clean = 'https://' + clean;
+      }
+      const u = new URL(clean);
+      const parts = u.pathname.split('/').filter(Boolean);
+      if (u.hostname.includes('dev.azure.com') && parts.length >= 2) {
+        setOrgUrl(`${u.protocol}//${u.hostname}/${parts[0]}`);
+        setProjectName(decodeURIComponent(parts[1]));
+      } else if (u.hostname.includes('.visualstudio.com') && parts.length >= 1) {
+        setOrgUrl(`${u.protocol}//${u.hostname}`);
+        setProjectName(decodeURIComponent(parts[0]));
+      }
+    } catch {
+      // Keep as-is
+    }
+  };
+
+  const loadPreview = async (projId: string, projName?: string) => {
     setIsLoading(true);
     setErrorMessage(null);
     try {
-      const res = await api.ado.preview({ projectId: projId });
-      if (res.success && res.items) {
-        setPreviewItems(res.items);
-        setSelectedItemIds(res.items.map(i => i.id));
+      const res = await api.ado.preview({ 
+        projectId: projId,
+        projectName: projName,
+        organizationUrl: orgUrl || undefined,
+        personalAccessToken: patToken || undefined,
+      });
+      if (res.success) {
+        setPreviewItems(res.items || []);
+        setSelectedItemIds((res.items || []).map(i => i.id));
+        setIsLiveAdo(!!res.isLiveAdo);
+        if (res.message) {
+          setErrorMessage(res.message);
+        }
       }
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to preview ADO items');
@@ -118,10 +191,17 @@ export const AdoImportModal: React.FC<AdoImportModalProps> = ({
     }
   };
 
+  // Test connection & auto-discover projects
   const handleTestConnection = async () => {
+    if (!patToken && !config?.personalAccessTokenConfigured) {
+      setErrorMessage('Please insert your Personal Access Token (PAT) before running the test.');
+      return;
+    }
+
     setIsTesting(true);
     setTestResult(null);
     setErrorMessage(null);
+    setProjectSyncNotice(null);
     try {
       const res = await api.ado.testConnection({
         organizationUrl: orgUrl,
@@ -130,6 +210,10 @@ export const AdoImportModal: React.FC<AdoImportModalProps> = ({
       });
       if (res.success) {
         setTestResult(res.result);
+        if (Array.isArray(res.projects) && res.projects.length > 0) {
+          setRemoteProjects(res.projects);
+          setIsLiveAdo(true);
+        }
       }
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to connect to Azure DevOps API');
@@ -138,8 +222,10 @@ export const AdoImportModal: React.FC<AdoImportModalProps> = ({
     }
   };
 
+  // Save Settings & Credentials
   const handleSaveConfig = async () => {
     setIsLoading(true);
+    setErrorMessage(null);
     try {
       const res = await api.ado.updateConfig({
         organizationUrl: orgUrl,
@@ -148,16 +234,16 @@ export const AdoImportModal: React.FC<AdoImportModalProps> = ({
       });
       if (res.success) {
         setConfig(res.config);
-        setTestResult({
-          success: true,
-          timestamp: new Date().toISOString(),
-          organizationValidated: true,
-          projectValidated: true,
-          apiReachable: true,
-          apiVersion: '7.1-preview.1',
-          latencyMs: 54,
-          message: 'Azure DevOps configuration saved and verified.',
+        // Refresh project list with new credentials
+        const projRes = await api.ado.listProjects({
+          organizationUrl: orgUrl,
+          personalAccessToken: patToken || undefined,
         });
+        if (projRes.success && Array.isArray(projRes.projects)) {
+          setRemoteProjects(projRes.projects);
+          setIsLiveAdo(!!projRes.isLiveAdo);
+        }
+        setProjectSyncNotice('Credentials saved and verified with Azure DevOps REST API.');
       }
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to update config');
@@ -166,6 +252,33 @@ export const AdoImportModal: React.FC<AdoImportModalProps> = ({
     }
   };
 
+  // Sync Projects from Azure DevOps to Portfolio
+  const handleSyncAllProjects = async () => {
+    setIsSyncingProjects(true);
+    setErrorMessage(null);
+    setProjectSyncNotice(null);
+    try {
+      const res = await api.ado.syncProjects({
+        organizationUrl: orgUrl,
+        personalAccessToken: patToken || undefined,
+      });
+      if (res.success) {
+        setProjectSyncNotice(res.message);
+        if (Array.isArray(res.discoveredProjects)) {
+          setRemoteProjects(res.discoveredProjects);
+        }
+        if (onProjectsSynced && res.projects) {
+          onProjectsSynced(res.projects);
+        }
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Failed to synchronize projects from Azure DevOps');
+    } finally {
+      setIsSyncingProjects(false);
+    }
+  };
+
+  // Trigger Ingestion of Work Items into WBS
   const handleTriggerSync = async () => {
     if (selectedItemIds.length === 0) {
       setErrorMessage('Please select at least one work item to synchronize.');
@@ -177,12 +290,17 @@ export const AdoImportModal: React.FC<AdoImportModalProps> = ({
     try {
       const res = await api.ado.sync({
         targetProjectId: selectedProjectId,
+        projectName: selectedProjectName || projectName,
         mode: syncMode,
         selectedWorkItemIds: selectedItemIds,
+        items: previewItems,
       });
 
       if (res.success) {
         setSyncSuccess(res.result);
+        if (onProjectsSynced && res.projects) {
+          onProjectsSynced(res.projects);
+        }
         if (onSyncComplete) {
           onSyncComplete(res.result, res.project);
         }
@@ -234,6 +352,22 @@ export const AdoImportModal: React.FC<AdoImportModalProps> = ({
     }
   };
 
+  // Combine delivery projects and discovered remote ADO projects
+  const allProjectOptions = [
+    ...portfolioProjects.map(p => ({
+      id: p.id,
+      name: p.accountName,
+      source: 'portfolio',
+    })),
+    ...remoteProjects
+      .filter(rp => !portfolioProjects.some(ap => ap.accountName.toLowerCase() === rp.name.toLowerCase() || ap.id === `ado-${rp.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`))
+      .map(rp => ({
+        id: `ado-${rp.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+        name: rp.name,
+        source: 'ado_remote',
+      }))
+  ];
+
   if (!isOpen) return null;
 
   return (
@@ -248,13 +382,19 @@ export const AdoImportModal: React.FC<AdoImportModalProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-lg font-bold">Azure DevOps (ADO) Work Item Ingestion</h3>
+                <h3 className="text-lg font-bold">Azure DevOps (ADO) Live Ingestion &amp; Sync</h3>
                 <span className="px-2 py-0.5 text-xs font-semibold bg-white/20 text-white rounded-full border border-white/20">
                   REST API v7.1
                 </span>
+                {isLiveAdo && (
+                  <span className="px-2 py-0.5 text-[10px] font-bold bg-emerald-400/30 text-emerald-100 rounded-full border border-emerald-300/40 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse" />
+                    Live ADO Connected
+                  </span>
+                )}
               </div>
               <p className="text-xs text-blue-100 mt-0.5">
-                Ingest Epics, Features, Stories, Tasks & Bugs directly into arQuonCX Delivery WBS, Burndown & C-Suite Briefings
+                Ingest Epics, Features, Stories, Tasks &amp; Bugs from remote Azure DevOps boards into arQuonCX WBS deliverables &amp; burndown curves
               </p>
             </div>
           </div>
@@ -278,7 +418,7 @@ export const AdoImportModal: React.FC<AdoImportModalProps> = ({
               }`}
             >
               <Database className="w-4 h-4" />
-              Backlog Ingestion & Live Sync
+              Backlog Ingestion &amp; Live Sync
             </button>
             <button
               onClick={() => setActiveTab('config')}
@@ -289,26 +429,41 @@ export const AdoImportModal: React.FC<AdoImportModalProps> = ({
               }`}
             >
               <Key className="w-4 h-4" />
-              API Connection & Credentials
+              Connection, PAT Token &amp; Remote Projects ({remoteProjects.length})
             </button>
           </div>
 
           <div className="flex items-center gap-2 pb-2">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              Enterprise Connector Active
-            </span>
+            <button
+              onClick={handleSyncAllProjects}
+              disabled={isSyncingProjects}
+              className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-950/60 dark:text-blue-300 dark:hover:bg-blue-900/60 border border-blue-200 dark:border-blue-800 transition-colors cursor-pointer"
+              title="Synchronize all remote Azure DevOps projects into arQuonCX Delivery Projects"
+            >
+              <RefreshCw className={`w-3 h-3 ${isSyncingProjects ? 'animate-spin' : ''}`} />
+              <span>Sync ADO Projects</span>
+            </button>
           </div>
         </div>
 
         {/* Content Body */}
-        <div className="p-6 overflow-y-auto space-y-5 flex-1">
+        <div className="p-6 overflow-y-auto space-y-4 flex-1">
           {errorMessage && (
             <div className="p-3.5 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 flex items-start gap-3 text-sm text-red-800 dark:text-red-300">
               <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
               <div>
-                <p className="font-semibold">Operation Notice</p>
-                <p className="text-xs mt-0.5 opacity-90">{errorMessage}</p>
+                <p className="font-semibold">Azure DevOps Diagnostics</p>
+                <p className="text-xs mt-0.5 opacity-90 leading-relaxed">{errorMessage}</p>
+              </div>
+            </div>
+          )}
+
+          {projectSyncNotice && (
+            <div className="p-3.5 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 flex items-start gap-3 text-sm text-blue-800 dark:text-blue-300">
+              <CheckCircle2 className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold">Project Synchronization Status</p>
+                <p className="text-xs mt-0.5 opacity-90 leading-relaxed">{projectSyncNotice}</p>
               </div>
             </div>
           )}
@@ -319,7 +474,7 @@ export const AdoImportModal: React.FC<AdoImportModalProps> = ({
                 <CheckCircle2 className="w-6 h-6 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
                 <div>
                   <h4 className="text-sm font-bold">{syncSuccess.message}</h4>
-                  <div className="flex flex-wrap gap-3 mt-2 text-xs">
+                  <div className="flex flex-wrap gap-2.5 mt-2 text-xs">
                     <span className="bg-emerald-100 dark:bg-emerald-900/60 px-2.5 py-1 rounded-md font-medium">
                       Epics: <strong>{syncSuccess.epicsCount}</strong>
                     </span>
@@ -345,19 +500,46 @@ export const AdoImportModal: React.FC<AdoImportModalProps> = ({
             <div className="space-y-4">
               {/* Controls bar */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/60">
-                {/* Target Account selector */}
+                {/* Target Project selector */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Target Enterprise Account
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      Target Project
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('config')}
+                      className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline"
+                    >
+                      + Connect New Project
+                    </button>
+                  </div>
                   <select
                     value={selectedProjectId}
-                    onChange={(e) => setSelectedProjectId(e.target.value)}
-                    className="w-full text-xs px-2.5 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSelectedProjectId(val);
+                      const matched = allProjectOptions.find(p => p.id === val);
+                      if (matched) setSelectedProjectName(matched.name);
+                    }}
+                    className="w-full text-xs px-2.5 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
                   >
-                    <option value="proj-1">Sonae Holdings (SHPL) - Private Cloud AI</option>
-                    <option value="proj-2">ArcelorMittal - SCADA Telemetry CX</option>
-                    <option value="proj-3">Indorama Ventures - Global ERP Syncer</option>
+                    <optgroup label="Enterprise Delivery Portfolio">
+                      {portfolioProjects.map(p => (
+                        <option key={p.id} value={p.id}>
+                          {p.accountName}
+                        </option>
+                      ))}
+                    </optgroup>
+                    {remoteProjects.length > 0 && (
+                      <optgroup label="Discovered from Azure DevOps">
+                        {remoteProjects.map(rp => (
+                          <option key={rp.id} value={`ado-${rp.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}>
+                            [ADO] {rp.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
                   </select>
                 </div>
 
@@ -376,7 +558,7 @@ export const AdoImportModal: React.FC<AdoImportModalProps> = ({
                         onChange={() => setSyncMode('merge')}
                         className="text-blue-600 focus:ring-blue-500"
                       />
-                      <span>Merge & Upsert</span>
+                      <span>Merge &amp; Upsert</span>
                     </label>
                     <label className="flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-300 cursor-pointer ml-3">
                       <input
@@ -429,8 +611,14 @@ export const AdoImportModal: React.FC<AdoImportModalProps> = ({
                       Select All ({selectedItemIds.length} of {previewItems.length} selected)
                     </span>
                   </div>
-                  <div className="text-slate-500 dark:text-slate-400">
-                    Showing {filteredItems.length} ADO items
+                  <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+                    {isLiveAdo && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                        Live ADO Work Items
+                      </span>
+                    )}
+                    <span>Showing {filteredItems.length} items</span>
                   </div>
                 </div>
 
@@ -441,7 +629,7 @@ export const AdoImportModal: React.FC<AdoImportModalProps> = ({
                         <th className="p-2.5 w-8"></th>
                         <th className="p-2.5 w-20">ADO ID</th>
                         <th className="p-2.5 w-24">Type</th>
-                        <th className="p-2.5 min-w-[240px]">Title & Hierarchy</th>
+                        <th className="p-2.5 min-w-[240px]">Title &amp; Hierarchy</th>
                         <th className="p-2.5 w-32">Assignee</th>
                         <th className="p-2.5 w-20">State</th>
                         <th className="p-2.5 w-24">Hours / Progress</th>
@@ -453,13 +641,13 @@ export const AdoImportModal: React.FC<AdoImportModalProps> = ({
                         <tr>
                           <td colSpan={8} className="p-8 text-center text-slate-500 dark:text-slate-400">
                             <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-blue-600" />
-                            Loading Azure DevOps backlogs...
+                            Querying Azure DevOps backlog items...
                           </td>
                         </tr>
                       ) : filteredItems.length === 0 ? (
                         <tr>
                           <td colSpan={8} className="p-8 text-center text-slate-500 dark:text-slate-400">
-                            No Azure DevOps work items match the selected filter.
+                            No work items found matching this selection in Azure DevOps.
                           </td>
                         </tr>
                       ) : (
@@ -568,14 +756,14 @@ export const AdoImportModal: React.FC<AdoImportModalProps> = ({
               </div>
             </div>
           ) : (
-            /* Config Tab */
+            /* Connection Tab */
             <div className="space-y-4">
               <div className="p-4 rounded-xl bg-blue-50/60 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/60 flex items-start gap-3">
                 <ShieldCheck className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
                 <div className="text-xs text-blue-900 dark:text-blue-200">
-                  <p className="font-semibold text-sm">Enterprise Azure DevOps Integration Parameters</p>
+                  <p className="font-semibold text-sm">Connect Azure DevOps Organization</p>
                   <p className="mt-1">
-                    Connect arQuonCX to your Azure DevOps Organization via Microsoft Entra ID Managed Identity or Personal Access Tokens (PAT). Supported scopes: Work Items (Read & Write), Project and Team (Read).
+                    Provide your Azure DevOps Organization URL and a Personal Access Token (PAT). arQuonCX queries your live projects via Azure DevOps REST API v7.1 and maps them into executive delivery trackers.
                   </p>
                 </div>
               </div>
@@ -583,53 +771,93 @@ export const AdoImportModal: React.FC<AdoImportModalProps> = ({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Azure DevOps Organization URL
+                    Azure DevOps Organization URL *
                   </label>
                   <input
                     type="text"
                     value={orgUrl}
-                    onChange={(e) => setOrgUrl(e.target.value)}
+                    onChange={(e) => handleOrgUrlChange(e.target.value)}
                     placeholder="https://dev.azure.com/{organization}"
                     className="w-full text-xs px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
-                  <p className="text-[11px] text-slate-500 mt-1">Example: https://dev.azure.com/arQuon-Enterprise</p>
+                  <p className="text-[11px] text-slate-500 mt-1">Example: https://dev.azure.com/my-company or https://mycompany.visualstudio.com</p>
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Target Project Name
+                    Target Project Name (Optional)
                   </label>
                   <input
                     type="text"
                     value={projectName}
                     onChange={(e) => setProjectName(e.target.value)}
-                    placeholder="e.g. arQuonCX-GlobalDeployments"
+                    placeholder="e.g. MyEnterpriseProject"
                     className="w-full text-xs px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
-                  <p className="text-[11px] text-slate-500 mt-1">Active project containing Epic and Feature hierarchies.</p>
+                  <p className="text-[11px] text-slate-500 mt-1">Leave blank to discover all projects automatically.</p>
                 </div>
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Personal Access Token (PAT) / Service Principal Secret
+                  Personal Access Token (PAT) *
                 </label>
                 <input
                   type="password"
                   value={patToken}
                   onChange={(e) => setPatToken(e.target.value)}
-                  placeholder="Paste ADO PAT token with 'vso.work_full' permission..."
+                  placeholder="Paste your Azure DevOps PAT token here..."
                   className="w-full text-xs px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
                 />
                 <div className="flex items-center justify-between text-[11px] text-slate-500 mt-1">
-                  <span>Tokens are AES-256 encrypted at rest in arQuonCX Vault.</span>
+                  <span>Required Scopes: <strong>Project and Team (Read)</strong> and <strong>Work Items (Read &amp; Write)</strong>.</span>
                   {config?.personalAccessTokenConfigured && (
                     <span className="text-emerald-600 font-semibold flex items-center gap-1">
-                      <Check className="w-3.5 h-3.5" /> Token currently configured
+                      <Check className="w-3.5 h-3.5" /> Token currently active
                     </span>
                   )}
                 </div>
               </div>
+
+              {/* Discovered Remote Projects */}
+              {remoteProjects.length > 0 && (
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                      <Building2 className="w-4 h-4 text-blue-600" />
+                      Discovered Remote Projects ({remoteProjects.length})
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleSyncAllProjects}
+                      disabled={isSyncingProjects}
+                      className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                    >
+                      <RefreshCw className={`w-3 h-3 ${isSyncingProjects ? 'animate-spin' : ''}`} />
+                      Sync All to Portfolio
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {remoteProjects.map(p => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedProjectId(`ado-${p.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`);
+                          setSelectedProjectName(p.name);
+                          setProjectName(p.name);
+                          setActiveTab('preview');
+                        }}
+                        className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-blue-500 text-slate-700 dark:text-slate-200 transition-all flex items-center gap-1.5"
+                      >
+                        <FolderGit2 className="w-3.5 h-3.5 text-blue-500" />
+                        <span>{p.name}</span>
+                        <ArrowRight className="w-3 h-3 text-slate-400" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Real-time Webhook Hook */}
               <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
@@ -646,7 +874,7 @@ export const AdoImportModal: React.FC<AdoImportModalProps> = ({
                   https://api.arquoncx.io/api/v1/integrations/ado/webhook
                 </code>
                 <p className="text-[11px] text-slate-500 mt-1.5">
-                  Configure this endpoint in ADO Project Settings &gt; Service Hooks to enable automatic sub-second sprint card updates when tasks or bugs change state in Azure Boards.
+                  Configure this endpoint in ADO Project Settings &gt; Service Hooks to enable automatic sub-second sprint updates when tasks or bugs change state in Azure Boards.
                 </p>
               </div>
 
@@ -669,20 +897,31 @@ export const AdoImportModal: React.FC<AdoImportModalProps> = ({
 
               <div className="flex items-center gap-3 pt-2">
                 <button
+                  type="button"
                   onClick={handleTestConnection}
                   disabled={isTesting}
-                  className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-2 transition-colors"
+                  className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-2 transition-colors cursor-pointer"
                 >
                   {isTesting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />}
-                  Test Connection Diagnostic
+                  Test Connection &amp; Fetch Projects
                 </button>
                 <button
+                  type="button"
                   onClick={handleSaveConfig}
                   disabled={isLoading}
-                  className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold flex items-center gap-2 transition-colors"
+                  className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer"
                 >
                   {isLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                  Save Settings
+                  Save Credentials
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSyncAllProjects}
+                  disabled={isSyncingProjects}
+                  className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer"
+                >
+                  {isSyncingProjects ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Database className="w-3.5 h-3.5" />}
+                  Sync All Projects
                 </button>
               </div>
             </div>
@@ -696,7 +935,7 @@ export const AdoImportModal: React.FC<AdoImportModalProps> = ({
               <span>
                 {selectedItemIds.length} item{selectedItemIds.length !== 1 ? 's' : ''} staged for ingestion into{' '}
                 <strong className="text-slate-700 dark:text-slate-200">
-                  {selectedProjectId === 'proj-1' ? 'SHPL' : selectedProjectId === 'proj-2' ? 'ArcelorMittal' : 'Indorama'}
+                  {selectedProjectName || selectedProjectId}
                 </strong>
               </span>
             )}
@@ -704,7 +943,7 @@ export const AdoImportModal: React.FC<AdoImportModalProps> = ({
           <div className="flex items-center gap-3">
             <button
               onClick={onClose}
-              className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
             >
               Cancel
             </button>
@@ -712,7 +951,7 @@ export const AdoImportModal: React.FC<AdoImportModalProps> = ({
               <button
                 onClick={handleTriggerSync}
                 disabled={isSyncing || selectedItemIds.length === 0}
-                className="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-2"
+                className="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer"
               >
                 {isSyncing ? (
                   <>

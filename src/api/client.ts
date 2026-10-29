@@ -306,17 +306,27 @@ export const api = {
         body: JSON.stringify(updates),
       }),
     testConnection: (data?: { organizationUrl?: string; projectName?: string; personalAccessToken?: string }) =>
-      request<{ success: boolean; result: AdoTestResult }>('/integrations/ado/test', {
+      request<{ success: boolean; result: AdoTestResult; projects?: Array<{ id: string; name: string; description?: string; state?: string; url?: string }> }>('/integrations/ado/test', {
         method: 'POST',
         body: JSON.stringify(data || {}),
       }),
-    preview: (data?: { projectId?: string; workItemTypes?: string[]; iteration?: string }) =>
-      request<{ success: boolean; projectId: string; totalCount: number; items: AdoWorkItemPreview[] }>('/integrations/ado/preview', {
+    listProjects: (data?: { organizationUrl?: string; personalAccessToken?: string }) =>
+      request<{ success: boolean; count: number; projects: Array<{ id: string; name: string; description?: string; state?: string; url?: string }>; isLiveAdo?: boolean }>('/integrations/ado/projects', {
         method: 'POST',
         body: JSON.stringify(data || {}),
       }),
-    sync: (data: { targetProjectId?: string; mode?: 'merge' | 'replace'; selectedWorkItemIds?: number[] }) =>
-      request<{ success: boolean; result: AdoSyncResult; project?: DeliveryProject }>('/integrations/ado/sync', {
+    syncProjects: (data?: { organizationUrl?: string; personalAccessToken?: string }) =>
+      request<{ success: boolean; message: string; createdCount: number; updatedCount: number; projects: DeliveryProject[]; discoveredProjects: Array<{ id: string; name: string; description?: string }> }>('/integrations/ado/sync-projects', {
+        method: 'POST',
+        body: JSON.stringify(data || {}),
+      }),
+    preview: (data?: { projectId?: string; projectName?: string; organizationUrl?: string; personalAccessToken?: string; workItemTypes?: string[]; iteration?: string }) =>
+      request<{ success: boolean; projectId: string; projectName?: string; totalCount: number; items: AdoWorkItemPreview[]; isLiveAdo?: boolean; message?: string }>('/integrations/ado/preview', {
+        method: 'POST',
+        body: JSON.stringify(data || {}),
+      }),
+    sync: (data: { targetProjectId?: string; projectName?: string; mode?: 'merge' | 'replace'; selectedWorkItemIds?: number[]; items?: AdoWorkItemPreview[] }) =>
+      request<{ success: boolean; result: AdoSyncResult; project?: DeliveryProject; projects?: DeliveryProject[] }>('/integrations/ado/sync', {
         method: 'POST',
         body: JSON.stringify(data),
       }),

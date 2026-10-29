@@ -197,6 +197,50 @@ let auditLogs = [
   },
 ];
 
+export function addAuditLog(entry: {
+  action: string;
+  actor: string;
+  details: string;
+  severity?: 'info' | 'warning' | 'critical' | 'security';
+}) {
+  const newLog = {
+    id: `audit-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    action: entry.action,
+    actor: entry.actor,
+    details: entry.details,
+    severity: entry.severity || 'info',
+    timestamp: new Date().toISOString(),
+  };
+  auditLogs.unshift(newLog);
+  if (auditLogs.length > 200) auditLogs.pop();
+  return newLog;
+}
+
+export function getOrProvisionStaff(email: string, name?: string, role?: RoleName, title?: string) {
+  let existing = staffMembers.find((s) => s.email.toLowerCase() === email.toLowerCase());
+  if (existing) {
+    if (role && existing.role !== role) {
+      existing.role = role;
+    }
+    existing.lastLogin = 'Just now';
+    return existing;
+  }
+
+  const newStaff = {
+    id: `user_azure_${Date.now()}`,
+    name: name || email.split('@')[0],
+    email,
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
+    role: (role || 'CSM') as RoleName,
+    title: title || 'Azure AD Enterprise Member',
+    department: 'Enterprise Customer Success',
+    status: 'active' as const,
+    lastLogin: 'Just now (Azure AD SSO)',
+  };
+  staffMembers.push(newStaff);
+  return newStaff;
+}
+
 /**
  * GET /api/v1/admin/meta
  * Fetch frontend meta management settings, feature flags, and default landing tab

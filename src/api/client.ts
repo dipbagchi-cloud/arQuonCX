@@ -1,4 +1,4 @@
-import { DeliveryProject, WbsTask, TeamVelocityMetrics } from '../types';
+import { DeliveryProject, WbsTask, TeamVelocityMetrics, AzureAdConfig, AzureAdTestResult } from '../types';
 
 
 const API_BASE = 'http://localhost:3001/api/v1';
@@ -48,6 +48,38 @@ export const api = {
       }),
     staff: () =>
       request<{ success: boolean; staff: any[] }>('/auth/staff'),
+    azureAd: {
+      getConfig: () =>
+        request<{ success: boolean; config: AzureAdConfig }>('/auth/sso/azure-ad/config'),
+      updateConfig: (updates: Partial<AzureAdConfig> & { clientSecret?: string }) =>
+        request<{ success: boolean; message: string; config: AzureAdConfig }>('/auth/sso/azure-ad/config', {
+          method: 'PUT',
+          body: JSON.stringify(updates),
+        }),
+      login: (payload: {
+        email: string;
+        name?: string;
+        tid?: string;
+        oid?: string;
+        groups?: string[];
+        roles?: string[];
+        preferred_username?: string;
+      }) =>
+        request<{
+          success: boolean;
+          token: string;
+          user: any;
+          permissions: string[];
+          claimsSummary: any;
+        }>('/auth/sso/azure-ad/login', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        }),
+      testConnection: () =>
+        request<AzureAdTestResult>('/auth/sso/azure-ad/test', {
+          method: 'POST',
+        }),
+    },
   },
 
   accounts: {

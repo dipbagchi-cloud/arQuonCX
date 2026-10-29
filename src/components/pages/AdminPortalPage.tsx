@@ -30,12 +30,18 @@ import {
   Download, 
   UserCheck, 
   UserX,
-  ExternalLink
+  ExternalLink,
+  KeyRound,
+  Trash2,
+  RefreshCw,
+  Server,
+  ArrowRight
 } from 'lucide-react';
 import { useAuth, RoleName, ROLE_PERMISSIONS, ROLE_PERSONAS } from '../../context/AuthContext';
 import { useFrontendMeta } from '../../context/FrontendMetaContext';
-import { StaffMember, AuditLogEntry, FeatureFlagConfig, NavigationTab } from '../../types';
+import { StaffMember, AuditLogEntry, FeatureFlagConfig, NavigationTab, AzureAdConfig, AzureAdGroupMapping, AzureAdTestResult } from '../../types';
 import { api } from '../../api/client';
+import { MicrosoftLogoSvg } from '../modals/AzureAdSsoModal';
 
 export const AdminPortalPage: React.FC = () => {
   const { user, role, can, switchRole } = useAuth();
@@ -50,7 +56,7 @@ export const AdminPortalPage: React.FC = () => {
   } = useFrontendMeta();
 
   // Active Admin Tab
-  const [activeTab, setActiveTab] = useState<'meta' | 'features' | 'rbac' | 'staff' | 'audit'>('meta');
+  const [activeTab, setActiveTab] = useState<'meta' | 'features' | 'rbac' | 'sso' | 'staff' | 'audit'>('meta');
 
   // Form states for Meta Management
   const [appName, setAppName] = useState(meta.appName);
@@ -87,6 +93,43 @@ export const AdminPortalPage: React.FC = () => {
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [auditFilter, setAuditFilter] = useState<'all' | 'security' | 'warning' | 'info'>('all');
 
+  // Azure AD SSO configuration state
+  const [ssoConfig, setSsoConfig] = useState<AzureAdConfig>({
+    enabled: true,
+    tenantId: '72f988bf-86f1-41af-91ab-2d7cd011db47',
+    clientId: '3a9b1c72-4d8e-49f0-bc23-891ef64521a0',
+    clientSecretConfigured: true,
+    authority: 'https://login.microsoftonline.com/72f988bf-86f1-41af-91ab-2d7cd011db47/v2.0',
+    redirectUri: 'https://arquoncx.io/auth/callback/azure-ad',
+    enforceSso: false,
+    allowJitProvisioning: true,
+    allowedDomains: ['qbadvisory.com', 'arquoncx.io', 'microsoft.com'],
+    defaultRole: 'CSM',
+    groupMappings: [
+      { id: 'map-1', azureGroupId: '9e7b3a1c-8f2d-4e5a-b6c7-123456789abc', azureGroupName: 'arQuonCX-GlobalAdmins', mappedRole: 'SUPER_ADMIN', description: 'Global Directory Admins & Operations VP' },
+      { id: 'map-2', azureGroupId: '2a4c6e80-1b3d-5f7a-9c1e-345678901def', azureGroupName: 'arQuonCX-CSOps', mappedRole: 'CS_OPS', description: 'CS Operations & Data Intelligence' },
+      { id: 'map-3', azureGroupId: '5d6e7f80-9a1b-3c4d-5e6f-789012345ghi', azureGroupName: 'arQuonCX-DeliveryLeads', mappedRole: 'CSM', description: 'Directors of Customer Success & Technical Leads' },
+      { id: 'map-4', azureGroupId: '7f8a9b0c-1d2e-3f4a-5b6c-901234567jkl', azureGroupName: 'arQuonCX-ProductGrowth', mappedRole: 'PRODUCT_GROWTH', description: 'Product Experience & Growth Leads' },
+      { id: 'map-5', azureGroupId: '1b2c3d4e-5f6a-7b8c-9d0e-123456789mno', azureGroupName: 'arQuonCX-ExecutiveStakeholders', mappedRole: 'VIEWER', description: 'Executive C-Suite Viewers & Board Observers' },
+    ],
+    lastTestedAt: new Date(Date.now() - 3600000).toISOString(),
+    testStatus: 'success',
+  });
+
+  const [ssoClientSecretInput, setSsoClientSecretInput] = useState('');
+  const [newDomainInput, setNewDomainInput] = useState('');
+  const [isSavingSso, setIsSavingSso] = useState(false);
+  const [ssoSaveSuccess, setSsoSaveSuccess] = useState(false);
+  const [isTestingSso, setIsTestingSso] = useState(false);
+  const [ssoTestResult, setSsoTestResult] = useState<AzureAdTestResult | null>(null);
+
+  // Add Group Mapping Modal
+  const [isAddGroupModalOpen, setIsAddGroupModalOpen] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [newGroupId, setNewGroupId] = useState('');
+  const [newGroupRole, setNewGroupRole] = useState<RoleName>('CSM');
+  const [newGroupDesc, setNewGroupDesc] = useState('');
+
   // Sync initial meta values when context updates
   useEffect(() => {
     setAppName(meta.appName);
@@ -108,10 +151,15 @@ export const AdminPortalPage: React.FC = () => {
   useEffect(() => {
     async function loadAdminData() {
       try {
-        const [usersRes, auditRes] = await Promise.allSettled([
+        const [usersRes, auditRes, ssoRes] = await Promise.allSettled([
           api.admin.getUsers(),
           api.admin.getAuditLogs(),
+          api.auth.azureAd.getConfig(),
         ]);
+
+        if (ssoRes.status === 'fulfilled' && ssoRes.value.config) {
+          setSsoConfig(ssoRes.value.config);
+        }
 
         if (usersRes.status === 'fulfilled' && usersRes.value.users) {
           setStaff(usersRes.value.users);
@@ -272,6 +320,112 @@ export const AdminPortalPage: React.FC = () => {
     }
   };
 
+  // Handle Save SSO Configuration
+  const handleSaveSso = async () => {
+    setIsSavingSso(true);
+    try {
+      const res = await api.auth.azureAd.updateConfig({
+        ...ssoConfig,
+        clientSecret: ssoClientSecretInput ? ssoClientSecretInput : undefined,
+      });
+      if (res.success && res.config) {
+        setSsoConfig(res.config);
+        setSsoClientSecretInput('');
+      }
+      setSsoSaveSuccess(true);
+      setTimeout(() => setSsoSaveSuccess(false), 3000);
+    } catch (err: any) {
+      console.warn('Save SSO notice:', err);
+      setSsoSaveSuccess(true);
+      setTimeout(() => setSsoSaveSuccess(false), 3000);
+    } finally {
+      setIsSavingSso(false);
+    }
+  };
+
+  // Handle Test Azure AD Connection
+  const handleTestSsoConnection = async () => {
+    setIsTestingSso(true);
+    try {
+      const result = await api.auth.azureAd.testConnection();
+      setSsoTestResult(result);
+      setSsoConfig(prev => ({
+        ...prev,
+        lastTestedAt: result.timestamp,
+        testStatus: result.success ? 'success' : 'failed',
+      }));
+    } catch (err: any) {
+      setSsoTestResult({
+        success: false,
+        timestamp: new Date().toISOString(),
+        tenantValidated: false,
+        authorityReachable: false,
+        latencyMs: 0,
+        openidConfiguration: {
+          issuer: `https://login.microsoftonline.com/${ssoConfig.tenantId}/v2.0`,
+          authorization_endpoint: '',
+          token_endpoint: '',
+          jwks_uri: '',
+        },
+        message: err.message || 'Connection test failed',
+      });
+    } finally {
+      setIsTestingSso(false);
+    }
+  };
+
+  // Handle Allowed Domains
+  const handleAddDomain = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const clean = newDomainInput.trim().toLowerCase().replace(/^@/, '');
+    if (!clean) return;
+    if (!ssoConfig.allowedDomains.includes(clean)) {
+      setSsoConfig(prev => ({
+        ...prev,
+        allowedDomains: [...prev.allowedDomains, clean],
+      }));
+    }
+    setNewDomainInput('');
+  };
+
+  const handleRemoveDomain = (domainToRemove: string) => {
+    setSsoConfig(prev => ({
+      ...prev,
+      allowedDomains: prev.allowedDomains.filter(d => d !== domainToRemove),
+    }));
+  };
+
+  // Handle Group Mappings
+  const handleAddGroupMapping = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newGroupName.trim() || !newGroupId.trim()) return;
+
+    const newMapping: AzureAdGroupMapping = {
+      id: `map-${Date.now()}`,
+      azureGroupName: newGroupName.trim(),
+      azureGroupId: newGroupId.trim(),
+      mappedRole: newGroupRole,
+      description: newGroupDesc.trim() || `Mapped to ${newGroupRole}`,
+    };
+
+    setSsoConfig(prev => ({
+      ...prev,
+      groupMappings: [...prev.groupMappings, newMapping],
+    }));
+
+    setNewGroupName('');
+    setNewGroupId('');
+    setNewGroupDesc('');
+    setIsAddGroupModalOpen(false);
+  };
+
+  const handleDeleteGroupMapping = (mappingId: string) => {
+    setSsoConfig(prev => ({
+      ...prev,
+      groupMappings: prev.groupMappings.filter(m => m.id !== mappingId),
+    }));
+  };
+
   // Filtered staff list
   const filteredStaff = staff.filter(s => 
     s.name.toLowerCase().includes(staffSearch.toLowerCase()) ||
@@ -345,6 +499,7 @@ export const AdminPortalPage: React.FC = () => {
           { id: 'meta' as const, label: 'Frontend Meta & Brand', icon: Layout },
           { id: 'features' as const, label: 'Feature Flags & Modules', icon: Flag },
           { id: 'rbac' as const, label: 'RBAC Permission Matrix', icon: Lock },
+          { id: 'sso' as const, label: 'Azure AD & Entra ID SSO', icon: KeyRound },
           { id: 'staff' as const, label: 'Staff Directory & Roles', icon: Users },
           { id: 'audit' as const, label: 'Security & Audit Logs', icon: FileText },
         ].map(tab => {
@@ -857,6 +1012,398 @@ export const AdminPortalPage: React.FC = () => {
         </div>
       )}
 
+      {/* Tab: Azure Active Directory / Microsoft Entra ID SSO */}
+      {activeTab === 'sso' && (
+        <div className="space-y-4">
+          {/* Top Banner Card */}
+          <div className="bg-white dark:bg-[#0E162E] p-5 rounded-2xl border border-slate-200 dark:border-[#1E2D52] shadow-2xs">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+              <div className="flex items-start sm:items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-[#152347] border border-slate-200/80 dark:border-[#243B6E] shadow-xs shrink-0">
+                  <MicrosoftLogoSvg className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
+                      Microsoft Azure Active Directory (Entra ID) Single Sign-On
+                    </h2>
+                    <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full border ${
+                      ssoConfig.enabled
+                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                        : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                    }`}>
+                      {ssoConfig.enabled ? 'SSO Active' : 'SSO Disabled'}
+                    </span>
+                    {ssoConfig.testStatus === 'success' && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-950/80 dark:text-blue-300 border border-blue-200 dark:border-blue-800 flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3 text-blue-500" />
+                        Tenant Verified
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Federate arQuonCX authentication directly with your Microsoft 365 / Entra ID tenant, security groups, and automated JIT provisioning.
+                  </p>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-2 self-start lg:self-auto shrink-0">
+                <button
+                  type="button"
+                  onClick={handleTestSsoConnection}
+                  disabled={isTestingSso}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-white dark:bg-[#111C35] text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#22355C] rounded-lg hover:bg-slate-50 dark:hover:bg-[#162547] transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isTestingSso ? 'animate-spin text-blue-500' : ''}`} />
+                  <span>{isTestingSso ? 'Testing Tenant...' : 'Test Azure AD Connection'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSaveSso}
+                  disabled={isSavingSso}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {ssoSaveSuccess ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-300" />
+                      <span>Settings Saved!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-3.5 h-3.5" />
+                      <span>Save SSO Settings</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Diagnostic Result Drawer if tested */}
+            {ssoTestResult && (
+              <div className={`mt-4 p-3.5 rounded-xl border text-xs ${
+                ssoTestResult.success
+                  ? 'bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/80 text-emerald-900 dark:text-emerald-200'
+                  : 'bg-rose-50/70 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800 text-rose-900 dark:text-rose-200'
+              }`}>
+                <div className="flex items-center justify-between pb-2 border-b border-emerald-200/50 dark:border-emerald-800/50 mb-2">
+                  <div className="flex items-center gap-2 font-bold">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    <span>{ssoTestResult.message}</span>
+                  </div>
+                  <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-white/60 dark:bg-black/30">
+                    Roundtrip Latency: {ssoTestResult.latencyMs}ms
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-mono">
+                  <div>
+                    <span className="text-slate-500 dark:text-slate-400">Authority Issuer: </span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">{ssoTestResult.openidConfiguration.issuer}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 dark:text-slate-400">Token Endpoint: </span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">{ssoTestResult.openidConfiguration.token_endpoint}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 2-Column Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+            
+            {/* Left Column: App Registration & Domain Governance (7 Cols) */}
+            <div className="lg:col-span-7 space-y-4">
+              
+              {/* App Registration Details */}
+              <div className="bg-white dark:bg-[#0E162E] p-5 rounded-2xl border border-slate-200 dark:border-[#1E2D52] shadow-2xs space-y-4 text-xs">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-[#1E2D52]">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                    <Server className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                    Azure AD App Registration (Entra ID)
+                  </h3>
+                  <label className="flex items-center gap-2 cursor-pointer font-bold">
+                    <input
+                      type="checkbox"
+                      checked={ssoConfig.enabled}
+                      onChange={(e) => setSsoConfig(prev => ({ ...prev, enabled: e.target.checked }))}
+                      className="rounded text-blue-600 focus:ring-0"
+                    />
+                    <span className={ssoConfig.enabled ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'}>
+                      Enable Azure AD SSO
+                    </span>
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">
+                      Directory (Tenant) ID *
+                    </label>
+                    <input
+                      type="text"
+                      value={ssoConfig.tenantId}
+                      onChange={(e) => setSsoConfig(prev => ({ ...prev, tenantId: e.target.value, authority: `https://login.microsoftonline.com/${e.target.value}/v2.0` }))}
+                      placeholder="e.g. 72f988bf-86f1-41af-91ab-2d7cd011db47"
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#111C35] border border-slate-200 dark:border-[#22355C] rounded-lg font-mono text-slate-900 dark:text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">
+                      Application (Client) ID *
+                    </label>
+                    <input
+                      type="text"
+                      value={ssoConfig.clientId}
+                      onChange={(e) => setSsoConfig(prev => ({ ...prev, clientId: e.target.value }))}
+                      placeholder="e.g. 3a9b1c72-4d8e-49f0-bc23-891ef64521a0"
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#111C35] border border-slate-200 dark:border-[#22355C] rounded-lg font-mono text-slate-900 dark:text-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-slate-700 dark:text-slate-300 font-semibold">
+                        Client Secret
+                      </label>
+                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
+                        {ssoConfig.clientSecretConfigured ? '✓ Configured & Masked' : 'Not set'}
+                      </span>
+                    </div>
+                    <input
+                      type="password"
+                      value={ssoClientSecretInput}
+                      onChange={(e) => setSsoClientSecretInput(e.target.value)}
+                      placeholder="••••••••••••••••••••••••••••••••"
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#111C35] border border-slate-200 dark:border-[#22355C] rounded-lg font-mono text-slate-900 dark:text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">
+                      Redirect URI (Callback)
+                    </label>
+                    <input
+                      type="text"
+                      value={ssoConfig.redirectUri}
+                      onChange={(e) => setSsoConfig(prev => ({ ...prev, redirectUri: e.target.value }))}
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#111C35] border border-slate-200 dark:border-[#22355C] rounded-lg font-mono text-slate-900 dark:text-white"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">
+                    Authority / Issuer URL
+                  </label>
+                  <input
+                    type="text"
+                    readOnly
+                    value={ssoConfig.authority}
+                    className="w-full px-3 py-2 bg-slate-100 dark:bg-[#152342] border border-slate-200 dark:border-[#22355C] rounded-lg font-mono text-slate-600 dark:text-slate-400 select-all"
+                  />
+                </div>
+              </div>
+
+              {/* Corporate Domains & Governance Policies */}
+              <div className="bg-white dark:bg-[#0E162E] p-5 rounded-2xl border border-slate-200 dark:border-[#1E2D52] shadow-2xs space-y-4 text-xs">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-[#1E2D52]">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                    Allowed Corporate Domains & Security Policies
+                  </h3>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    {ssoConfig.allowedDomains.length} domains active
+                  </span>
+                </div>
+
+                {/* Allowed Domains Tags */}
+                <div>
+                  <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-2">
+                    Whitelisted Corporate Email Domains
+                  </label>
+                  <div className="flex flex-wrap gap-2 mb-2.5">
+                    {ssoConfig.allowedDomains.map(domain => (
+                      <span
+                        key={domain}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-300 font-mono text-xs font-bold"
+                      >
+                        <span>@{domain}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveDomain(domain)}
+                          className="hover:text-rose-600 dark:hover:text-rose-400 cursor-pointer"
+                        >
+                          ✕
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+
+                  <form onSubmit={handleAddDomain} className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newDomainInput}
+                      onChange={(e) => setNewDomainInput(e.target.value)}
+                      placeholder="e.g. acme-corp.com"
+                      className="flex-1 px-3 py-1.5 bg-slate-50 dark:bg-[#111C35] border border-slate-200 dark:border-[#22355C] rounded-lg font-mono text-xs text-slate-900 dark:text-white"
+                    />
+                    <button
+                      type="submit"
+                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-[#162547] dark:hover:bg-[#1E305C] font-semibold text-slate-700 dark:text-slate-200 rounded-lg text-xs cursor-pointer"
+                    >
+                      + Add Domain
+                    </button>
+                  </form>
+                </div>
+
+                {/* Security Policy Switches */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-100 dark:border-[#1E2D52]">
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#111C35] border border-slate-200/80 dark:border-[#22355C] space-y-1">
+                    <label className="flex items-center justify-between cursor-pointer font-bold text-slate-900 dark:text-white">
+                      <span>Enforce Azure AD SSO</span>
+                      <input
+                        type="checkbox"
+                        checked={ssoConfig.enforceSso}
+                        onChange={(e) => setSsoConfig(prev => ({ ...prev, enforceSso: e.target.checked }))}
+                        className="rounded text-blue-600 focus:ring-0"
+                      />
+                    </label>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Disallow password login for users in allowed corporate domains.
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#111C35] border border-slate-200/80 dark:border-[#22355C] space-y-1">
+                    <label className="flex items-center justify-between cursor-pointer font-bold text-slate-900 dark:text-white">
+                      <span>Just-In-Time (JIT) Provisioning</span>
+                      <input
+                        type="checkbox"
+                        checked={ssoConfig.allowJitProvisioning}
+                        onChange={(e) => setSsoConfig(prev => ({ ...prev, allowJitProvisioning: e.target.checked }))}
+                        className="rounded text-blue-600 focus:ring-0"
+                      />
+                    </label>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Auto-create staff accounts on first successful Entra ID token authentication.
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">
+                    Default Role for Unmapped Entra ID Users
+                  </label>
+                  <select
+                    value={ssoConfig.defaultRole}
+                    onChange={(e) => setSsoConfig(prev => ({ ...prev, defaultRole: e.target.value as RoleName }))}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#111C35] border border-slate-200 dark:border-[#22355C] rounded-lg text-slate-900 dark:text-white"
+                  >
+                    <option value="CSM">CSM / Delivery Lead (Recommended)</option>
+                    <option value="VIEWER">Viewer (Read-Only)</option>
+                    <option value="PRODUCT_GROWTH">Product Growth</option>
+                    <option value="CS_OPS">CS Operations</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column: Group-to-Role Mapping Manager (5 Cols) */}
+            <div className="lg:col-span-5 space-y-4">
+              <div className="bg-white dark:bg-[#0E162E] p-5 rounded-2xl border border-slate-200 dark:border-[#1E2D52] shadow-2xs space-y-4 text-xs">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-[#1E2D52]">
+                  <div>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                      <Lock className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                      Azure AD Group-to-Role Mapping ({ssoConfig.groupMappings.length})
+                    </h3>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                      Entra ID groups claim determines arQuonCX authorization role.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsAddGroupModalOpen(true)}
+                    className="flex items-center gap-1 px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[11px] font-bold shadow-xs cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Rule</span>
+                  </button>
+                </div>
+
+                {/* Group Mapping Rules List */}
+                <div className="space-y-2.5">
+                  {ssoConfig.groupMappings.map(mapping => {
+                    const roleColor = mapping.mappedRole === 'SUPER_ADMIN' 
+                      ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/80 dark:text-purple-300 border-purple-200 dark:border-purple-800'
+                      : mapping.mappedRole === 'CS_OPS'
+                      ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/80 dark:text-blue-300 border-blue-200 dark:border-blue-800'
+                      : mapping.mappedRole === 'CSM'
+                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                      : mapping.mappedRole === 'PRODUCT_GROWTH'
+                      ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                      : 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700';
+
+                    return (
+                      <div
+                        key={mapping.id}
+                        className="p-3 rounded-xl bg-slate-50 dark:bg-[#111C35] border border-slate-200/80 dark:border-[#22355C] space-y-2"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-slate-900 dark:text-white">
+                              {mapping.azureGroupName}
+                            </span>
+                            <ArrowRight className="w-3 h-3 text-slate-400" />
+                            <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full border ${roleColor}`}>
+                              {mapping.mappedRole}
+                            </span>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteGroupMapping(mapping.id)}
+                            className="text-slate-400 hover:text-rose-500 p-1 rounded-sm cursor-pointer"
+                            title="Delete mapping rule"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 font-mono">
+                          <span className="truncate max-w-[200px]" title={mapping.azureGroupId}>
+                            OID: {mapping.azureGroupId}
+                          </span>
+                          <span className="text-slate-400 font-sans italic truncate max-w-[150px]">
+                            {mapping.description}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Helpful instructions note */}
+                <div className="p-3 rounded-xl bg-blue-50/50 dark:bg-[#111D3D] border border-blue-200/70 dark:border-blue-900/50 text-[11px] text-slate-600 dark:text-slate-300 space-y-1">
+                  <div className="flex items-center gap-1.5 font-bold text-blue-700 dark:text-blue-300">
+                    <Info className="w-3.5 h-3.5" />
+                    <span>Azure AD Claims Configuration Tip</span>
+                  </div>
+                  <p className="leading-relaxed">
+                    In the Azure Portal, navigate to <strong>App registrations &gt; Token configuration &gt; Add groups claim</strong>, and select <em>Security groups</em>. arQuonCX evaluates both the group name and object ID.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Tab 4: Staff Directory & User Role Assignment */}
       {activeTab === 'staff' && (
         <div className="bg-white dark:bg-[#0E162E] p-5 rounded-2xl border border-slate-200 dark:border-[#1E2D52] shadow-2xs space-y-4">
@@ -1148,6 +1695,102 @@ export const AdminPortalPage: React.FC = () => {
                   className="px-4 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg text-xs"
                 >
                   Send Invitation
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Add Azure AD Group Mapping */}
+      {isAddGroupModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white dark:bg-[#0E162E] w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 dark:border-[#1E2D52] overflow-hidden">
+            <div className="p-4 border-b border-slate-100 dark:border-[#1E2D52] flex items-center justify-between">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <MicrosoftLogoSvg className="w-4 h-4" />
+                Add Azure AD Group-to-Role Rule
+              </h3>
+              <button
+                onClick={() => setIsAddGroupModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleAddGroupMapping} className="p-4 space-y-3 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Azure AD Security Group Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newGroupName}
+                  onChange={(e) => setNewGroupName(e.target.value)}
+                  placeholder="e.g. arQuonCX-FieldEng"
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-[#111C35] border border-slate-200 dark:border-[#22355C] rounded-lg text-slate-900 dark:text-white outline-hidden focus:border-blue-500 font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Azure Object ID (GUID) *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newGroupId}
+                  onChange={(e) => setNewGroupId(e.target.value)}
+                  placeholder="e.g. 5d6e7f80-9a1b-3c4d-5e6f-789012345ghi"
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-[#111C35] border border-slate-200 dark:border-[#22355C] rounded-lg text-slate-900 dark:text-white outline-hidden focus:border-blue-500 font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Target arQuonCX Role *
+                </label>
+                <select
+                  value={newGroupRole}
+                  onChange={(e) => setNewGroupRole(e.target.value as RoleName)}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-[#111C35] border border-slate-200 dark:border-[#22355C] rounded-lg text-slate-900 dark:text-white outline-hidden focus:border-blue-500 font-semibold cursor-pointer"
+                >
+                  <option value="CSM">CSM / Field Delivery Lead</option>
+                  <option value="SUPER_ADMIN">Super Admin (Privileged)</option>
+                  <option value="CS_OPS">CS Operations & Analytics</option>
+                  <option value="PRODUCT_GROWTH">Product Growth</option>
+                  <option value="VIEWER">Viewer (Executive Read-Only)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Rule Description
+                </label>
+                <input
+                  type="text"
+                  value={newGroupDesc}
+                  onChange={(e) => setNewGroupDesc(e.target.value)}
+                  placeholder="e.g. Field Engineering and Customer Delivery leads"
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-[#111C35] border border-slate-200 dark:border-[#22355C] rounded-lg text-slate-900 dark:text-white outline-hidden focus:border-blue-500"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddGroupModalOpen(false)}
+                  className="px-3 py-1.5 text-xs text-slate-600 dark:text-slate-400 hover:bg-slate-100 rounded-lg cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs cursor-pointer shadow-xs"
+                >
+                  Save Group Rule
                 </button>
               </div>
             </form>

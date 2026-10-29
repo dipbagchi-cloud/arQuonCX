@@ -22,6 +22,7 @@ import { BrandLogo } from '../common/BrandLogo';
 import { NavigationTab } from '../../types';
 import { useAuth, RoleName } from '../../context/AuthContext';
 import { useFrontendMeta } from '../../context/FrontendMetaContext';
+import { AzureAdSsoModal, MicrosoftLogoSvg } from '../modals/AzureAdSsoModal';
 
 interface LoginPageProps {
   onLoginSuccess: (targetTab?: NavigationTab) => void;
@@ -175,6 +176,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showAzureAdModal, setShowAzureAdModal] = useState(false);
 
   // Switch role portal
   const handleSelectPortal = (portalId: PortalId) => {
@@ -314,6 +316,39 @@ export const LoginPage: React.FC<LoginPageProps> = ({
               <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
                 {activePortal.subtitle}
               </p>
+            </div>
+
+            {/* Enterprise Single Sign-On (Azure AD / Entra ID) */}
+            <div className="mb-4">
+              <button
+                type="button"
+                onClick={() => setShowAzureAdModal(true)}
+                className="w-full p-2.5 sm:p-3 rounded-2xl bg-white dark:bg-[#111C35] hover:bg-slate-50 dark:hover:bg-[#152342] border border-slate-300 dark:border-[#283C66] hover:border-blue-400 dark:hover:border-blue-500 shadow-xs transition-all flex items-center justify-between group cursor-pointer"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="p-2 rounded-xl bg-slate-100 dark:bg-[#1A2A4E] shrink-0 border border-slate-200/80 dark:border-slate-700/60 shadow-2xs">
+                    <MicrosoftLogoSvg className="w-4 h-4" />
+                  </div>
+                  <div className="text-left min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-slate-900 dark:text-white">
+                        Sign in with Microsoft Azure AD
+                      </span>
+                      <span className="text-[9px] uppercase font-mono font-bold px-1.5 py-0.2 bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-sm border border-blue-500/20">
+                        Entra ID
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                      Single Sign-On for @qbadvisory.com & @arquoncx.io corporate directories
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1 text-[11px] font-bold text-blue-600 dark:text-blue-400 group-hover:translate-x-0.5 transition-transform shrink-0 pl-2">
+                  <span>SSO</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </div>
+              </button>
             </div>
 
             {/* Quick 1-Click Role Credential Presets */}
@@ -541,6 +576,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Microsoft Azure Active Directory / Entra ID Interactive SSO Modal */}
+      <AzureAdSsoModal
+        isOpen={showAzureAdModal}
+        onClose={() => setShowAzureAdModal(false)}
+        onSuccess={(destTab) => onLoginSuccess(destTab)}
+      />
     </div>
   );
 };

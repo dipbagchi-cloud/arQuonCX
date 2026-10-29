@@ -369,3 +369,59 @@ export interface TeamVelocityMetrics {
   sprintNumber: number;
   userWorkloads: UserWorkloadItem[];
 }
+
+// =============================================================
+// Microsoft Entra ID / Azure AD SSO Interfaces
+// =============================================================
+
+export interface AzureAdGroupMapping {
+  id: string;
+  azureGroupId: string;
+  azureGroupName: string;
+  mappedRole: 'SUPER_ADMIN' | 'CS_OPS' | 'CSM' | 'PRODUCT_GROWTH' | 'VIEWER';
+  description?: string;
+}
+
+export interface AzureAdConfig {
+  enabled: boolean;
+  tenantId: string;
+  clientId: string;
+  clientSecretConfigured: boolean;
+  authority: string;
+  redirectUri: string;
+  enforceSso: boolean;
+  allowJitProvisioning: boolean;
+  allowedDomains: string[];
+  defaultRole: 'SUPER_ADMIN' | 'CS_OPS' | 'CSM' | 'PRODUCT_GROWTH' | 'VIEWER';
+  groupMappings: AzureAdGroupMapping[];
+  lastTestedAt?: string;
+  testStatus?: 'success' | 'failed' | 'untested';
+}
+
+export interface AzureAdTestResult {
+  success: boolean;
+  timestamp: string;
+  tenantValidated: boolean;
+  authorityReachable: boolean;
+  openidConfiguration: {
+    issuer: string;
+    authorization_endpoint: string;
+    token_endpoint: string;
+    jwks_uri: string;
+  };
+  latencyMs: number;
+  message: string;
+}
+
+export interface AzureAdLoginClaims {
+  tid?: string; // Tenant ID
+  oid?: string; // Object ID
+  sub?: string;
+  upn?: string; // User Principal Name
+  email?: string;
+  name?: string;
+  preferred_username?: string;
+  groups?: string[];
+  roles?: string[];
+}
+

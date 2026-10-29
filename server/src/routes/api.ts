@@ -13,6 +13,7 @@ import * as Telemetry from '../controllers/telemetryController';
 import * as Delivery from '../controllers/deliveryController';
 import * as Wbs from '../controllers/wbsController';
 import * as Admin from '../controllers/adminController';
+import * as AzureAd from '../controllers/azureAdController';
 
 const router = Router();
 
@@ -20,6 +21,8 @@ const router = Router();
 // Public / Ingestion Routes
 // =============================================================
 router.post('/auth/login', Auth.login);
+router.get('/auth/sso/azure-ad/config', AzureAd.getAzureAdConfig);
+router.post('/auth/sso/azure-ad/login', AzureAd.azureAdLogin);
 router.post('/telemetry/identify', Telemetry.identifyUser);
 router.post('/telemetry/track', Telemetry.trackEvent);
 router.post('/telemetry/flow-event', Telemetry.recordFlowEvent);
@@ -92,5 +95,9 @@ router.get('/admin/users', requirePermission('team:manage'), Admin.getAdminUsers
 router.put('/admin/users/:id/role', requirePermission('team:manage'), Admin.updateUserRole);
 router.post('/admin/users/invite', requirePermission('team:manage'), Admin.inviteUser);
 router.get('/admin/audit-logs', requirePermission('audit:read'), Admin.getAuditLogs);
+
+// Azure AD & Microsoft Entra ID SSO Governance
+router.put('/auth/sso/azure-ad/config', requirePermission('team:manage'), AzureAd.updateAzureAdConfig);
+router.post('/auth/sso/azure-ad/test', requirePermission('team:manage'), AzureAd.testAzureAdConnection);
 
 export default router;

@@ -14,6 +14,7 @@ import * as Delivery from '../controllers/deliveryController';
 import * as Wbs from '../controllers/wbsController';
 import * as Admin from '../controllers/adminController';
 import * as AzureAd from '../controllers/azureAdController';
+import * as Ado from '../controllers/adoController';
 
 const router = Router();
 
@@ -27,6 +28,7 @@ router.post('/telemetry/identify', Telemetry.identifyUser);
 router.post('/telemetry/track', Telemetry.trackEvent);
 router.post('/telemetry/flow-event', Telemetry.recordFlowEvent);
 router.post('/telemetry/survey-submit', Telemetry.submitSurvey);
+router.post('/integrations/ado/webhook', Ado.adoWebhook);
 
 // =============================================================
 // Authenticated User & RBAC Protected Endpoints
@@ -74,6 +76,13 @@ router.get('/integrations', requirePermission('account:read'), Integrations.getI
 router.patch('/integrations/:id/toggle', requirePermission('integrations:manage'), Integrations.toggleIntegration);
 router.get('/integrations/keys', requirePermission('api_keys:manage'), Integrations.getApiKeys);
 router.post('/integrations/keys', requirePermission('api_keys:manage'), Integrations.createApiKey);
+
+// Azure DevOps Integration & Ingestion
+router.get('/integrations/ado/config', requirePermission('account:read'), Ado.getAdoConfig);
+router.put('/integrations/ado/config', requirePermission('integrations:manage'), Ado.updateAdoConfig);
+router.post('/integrations/ado/test', requirePermission('integrations:manage'), Ado.testAdoConnection);
+router.post('/integrations/ado/preview', requirePermission('account:read'), Ado.previewAdoWorkItems);
+router.post('/integrations/ado/sync', requirePermission('account:write'), Ado.syncAdoWorkItems);
 
 // Executive Delivery & C-Suite Briefing
 router.get('/delivery/projects', requirePermission('account:read'), Delivery.getDeliveryProjects);

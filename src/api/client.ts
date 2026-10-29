@@ -1,4 +1,14 @@
-import { DeliveryProject, WbsTask, TeamVelocityMetrics, AzureAdConfig, AzureAdTestResult } from '../types';
+import { 
+  DeliveryProject, 
+  WbsTask, 
+  TeamVelocityMetrics, 
+  AzureAdConfig, 
+  AzureAdTestResult,
+  AdoConfig,
+  AdoWorkItemPreview,
+  AdoSyncResult,
+  AdoTestResult
+} from '../types';
 
 
 const API_BASE = 'http://localhost:3001/api/v1';
@@ -285,5 +295,30 @@ export const api = {
       }),
     getAuditLogs: () =>
       request<{ success: boolean; auditLogs: any[] }>('/admin/audit-logs'),
+  },
+
+  ado: {
+    getConfig: () =>
+      request<{ success: boolean; config: AdoConfig }>('/integrations/ado/config'),
+    updateConfig: (updates: Partial<AdoConfig> & { personalAccessToken?: string }) =>
+      request<{ success: boolean; message: string; config: AdoConfig }>('/integrations/ado/config', {
+        method: 'PUT',
+        body: JSON.stringify(updates),
+      }),
+    testConnection: (data?: { organizationUrl?: string; projectName?: string; personalAccessToken?: string }) =>
+      request<{ success: boolean; result: AdoTestResult }>('/integrations/ado/test', {
+        method: 'POST',
+        body: JSON.stringify(data || {}),
+      }),
+    preview: (data?: { projectId?: string; workItemTypes?: string[]; iteration?: string }) =>
+      request<{ success: boolean; projectId: string; totalCount: number; items: AdoWorkItemPreview[] }>('/integrations/ado/preview', {
+        method: 'POST',
+        body: JSON.stringify(data || {}),
+      }),
+    sync: (data: { targetProjectId?: string; mode?: 'merge' | 'replace'; selectedWorkItemIds?: number[] }) =>
+      request<{ success: boolean; result: AdoSyncResult; project?: DeliveryProject }>('/integrations/ado/sync', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
   },
 };

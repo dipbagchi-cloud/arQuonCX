@@ -28,6 +28,7 @@ import {
 import { WbsTask, DeliveryProject, WbsTaskStatus, WbsTaskPriority } from '../../types';
 import { calculateWbsProgress, calculateConfidenceScore, calculateTeamVelocity, calculatePredictedGoLive, calculateBurnChartSeries } from '../../utils/wbsMetrics';
 import { CreateWbsTaskModal } from '../modals/CreateWbsTaskModal';
+import { AdoImportModal, AzureDevOpsLogoSvg } from '../modals/AdoImportModal';
 
 interface DeploymentWBSPageProps {
   projects: DeliveryProject[];
@@ -40,6 +41,7 @@ interface DeploymentWBSPageProps {
   onNavigateTab?: (tab: string) => void;
   onNavigateToBriefing?: () => void;
   initialProjectId?: string;
+  onSyncAdoTasks?: (tasks: WbsTask[], updatedProject?: DeliveryProject) => void;
 }
 
 export const DeploymentWBSPage: React.FC<DeploymentWBSPageProps> = ({
@@ -53,6 +55,7 @@ export const DeploymentWBSPage: React.FC<DeploymentWBSPageProps> = ({
   onNavigateTab,
   onNavigateToBriefing,
   initialProjectId,
+  onSyncAdoTasks,
 }) => {
   const tasks = propTasks || wbsTasks || [];
   const [selectedProjectId, setSelectedProjectId] = useState<string>(initialProjectId || 'all');
@@ -63,6 +66,7 @@ export const DeploymentWBSPage: React.FC<DeploymentWBSPageProps> = ({
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [collapsedPhases, setCollapsedPhases] = useState<Record<string, boolean>>({});
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isAdoModalOpen, setIsAdoModalOpen] = useState(false);
 
   // Active project context
   const currentProject = useMemo(() => {
@@ -375,6 +379,15 @@ export const DeploymentWBSPage: React.FC<DeploymentWBSPageProps> = ({
               <span>C-Suite Briefing</span>
             </button>
           )}
+
+          <button
+            onClick={() => setIsAdoModalOpen(true)}
+            className="px-3 py-1.5 text-xs font-semibold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/50 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-xl border border-blue-200 dark:border-blue-800 transition-colors flex items-center gap-1.5 cursor-pointer"
+            title="Ingest Epics, Features, User Stories, Tasks & Bugs from Azure DevOps"
+          >
+            <AzureDevOpsLogoSvg className="w-3.5 h-3.5" />
+            <span>Sync Azure DevOps</span>
+          </button>
 
           <button
             onClick={handleExportCsv}
@@ -1834,6 +1847,18 @@ export const DeploymentWBSPage: React.FC<DeploymentWBSPageProps> = ({
         projects={projects}
         defaultProjectId={selectedProjectId !== 'all' ? selectedProjectId : undefined}
         onSaveTask={onCreateTask}
+      />
+
+      {/* Azure DevOps Ingestion Modal */}
+      <AdoImportModal
+        isOpen={isAdoModalOpen}
+        onClose={() => setIsAdoModalOpen(false)}
+        targetProjectId={selectedProjectId !== 'all' ? selectedProjectId : 'proj-1'}
+        onSyncComplete={(result, updatedProject) => {
+          if (onSyncAdoTasks) {
+            onSyncAdoTasks(result.tasks, updatedProject);
+          }
+        }}
       />
     </div>
   );

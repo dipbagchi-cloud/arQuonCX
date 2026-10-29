@@ -16,6 +16,7 @@ import {
 import { Integration } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { PermissionGate } from '../common/PermissionGate';
+import { AdoImportModal, AzureDevOpsLogoSvg } from '../modals/AdoImportModal';
 
 interface IntegrationsPageProps {
   integrations: Integration[];
@@ -31,6 +32,7 @@ export const IntegrationsPage: React.FC<IntegrationsPageProps> = ({
   const [copied, setCopied] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [verifySuccess, setVerifySuccess] = useState(true);
+  const [isAdoModalOpen, setIsAdoModalOpen] = useState(false);
 
   const sdkCode = `<script>
   (function(u,p,o,r,t){
@@ -142,6 +144,57 @@ export const IntegrationsPage: React.FC<IntegrationsPageProps> = ({
       {/* Tab 1: Integrations Directory */}
       {activeTab === 'catalog' && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {/* Azure DevOps Premier Connector Card */}
+          <div className="p-3.5 bg-gradient-to-br from-blue-50/80 to-indigo-50/50 dark:from-[#0E162E] dark:to-[#132044] rounded-xl border border-blue-200/90 dark:border-blue-900/60 shadow-2xs hover:border-blue-400 dark:hover:border-blue-700 transition-all flex flex-col justify-between">
+            <div>
+              <div className="flex items-start justify-between gap-2.5 mb-2.5">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-1.5 bg-blue-600/10 dark:bg-blue-600/20 rounded-lg">
+                    <AzureDevOpsLogoSvg className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      Azure DevOps (ADO)
+                      <span className="text-[9px] px-1.5 py-0.2 bg-blue-100 text-blue-800 dark:bg-blue-950/80 dark:text-blue-300 font-bold rounded">Enterprise</span>
+                    </h3>
+                    <span className="text-[9px] font-semibold text-blue-700 dark:text-blue-300 bg-blue-100/60 dark:bg-blue-950/60 px-1.5 py-0.5 rounded">
+                      Project Delivery &amp; WBS
+                    </span>
+                  </div>
+                </div>
+
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1 shrink-0 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Connected
+                </span>
+              </div>
+
+              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed mb-3">
+                Bi-directional sync of Epics, Features, User Stories, Tasks, and critical Bugs into arQuonCX Delivery WBS, velocity charts, and executive briefing.
+              </p>
+
+              <div className="p-2 bg-blue-50/60 dark:bg-[#111C35] rounded-lg border border-blue-100 dark:border-blue-900/40 text-[10px] text-blue-700 dark:text-blue-300 font-mono mb-2.5">
+                REST API v7.1 • Real-time Webhooks Active
+              </div>
+            </div>
+
+            <div className="pt-2.5 border-t border-blue-100 dark:border-blue-900/40 flex items-center justify-between text-xs">
+              <button
+                onClick={() => setIsAdoModalOpen(true)}
+                className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition-colors cursor-pointer flex items-center gap-1"
+              >
+                <RefreshCw className="w-3 h-3" />
+                <span>Configure &amp; Sync</span>
+              </button>
+              <button
+                onClick={() => setIsAdoModalOpen(true)}
+                className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+              >
+                Preview Backlog →
+              </button>
+            </div>
+          </div>
+
           {integrations.map((item) => (
             <div 
               key={item.id} 
@@ -307,6 +360,12 @@ export const IntegrationsPage: React.FC<IntegrationsPageProps> = ({
           </table>
         </div>
       )}
+
+      {/* Azure DevOps Ingestion Modal */}
+      <AdoImportModal
+        isOpen={isAdoModalOpen}
+        onClose={() => setIsAdoModalOpen(false)}
+      />
     </div>
   );
 };

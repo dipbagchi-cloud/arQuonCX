@@ -463,3 +463,69 @@ export interface AzureAdLoginClaims {
   roles?: string[];
 }
 
+// =============================================================
+// Azure DevOps (ADO) Integration & Ingestion Interfaces
+// =============================================================
+
+export type AdoWorkItemType = 'Epic' | 'Feature' | 'User Story' | 'Task' | 'Bug' | 'Test Case';
+
+export interface AdoConfig {
+  enabled: boolean;
+  organizationUrl: string;
+  projectName: string;
+  personalAccessTokenConfigured: boolean;
+  authType: 'pat' | 'azure_ad_sso';
+  defaultAreaPath?: string;
+  defaultIterationPath?: string;
+  syncFrequency: 'manual' | 'hourly' | 'daily' | 'realtime_webhook';
+  lastSyncTime?: string;
+  lastSyncStatus?: 'success' | 'failed' | 'in_progress';
+  syncedWorkItemCount?: number;
+}
+
+export interface AdoWorkItemPreview {
+  id: number;
+  workItemType: AdoWorkItemType;
+  title: string;
+  state: string;
+  assignedTo?: { displayName: string; avatarUrl?: string; email?: string };
+  areaPath: string;
+  iterationPath: string;
+  originalEstimate?: number;
+  remainingWork?: number;
+  completedWork?: number;
+  storyPoints?: number;
+  priority: number;
+  severity?: string;
+  epicName?: string;
+  featureName?: string;
+  targetProjectId?: string;
+  mappedWbsTask: Partial<WbsTask>;
+}
+
+export interface AdoSyncResult {
+  success: boolean;
+  message: string;
+  importedCount: number;
+  updatedCount: number;
+  epicsCount: number;
+  featuresCount: number;
+  tasksCount: number;
+  bugsCount: number;
+  tasks: WbsTask[];
+  syncedAt: string;
+  targetProjectId?: string;
+}
+
+export interface AdoTestResult {
+  success: boolean;
+  timestamp: string;
+  organizationValidated: boolean;
+  projectValidated: boolean;
+  apiReachable: boolean;
+  apiVersion: string;
+  latencyMs: number;
+  message: string;
+  availableProjects?: string[];
+}
+

@@ -366,6 +366,18 @@ export function App() {
     }
   };
 
+  // Handler: Ingest and synchronize Azure DevOps tasks
+  const handleAdoSyncTasks = (syncedTasks: WbsTask[], updatedProject?: DeliveryProject) => {
+    setWbsTasks(prev => {
+      const otherTasks = prev.filter(t => !syncedTasks.some(st => st.id === t.id));
+      return [...otherTasks, ...syncedTasks];
+    });
+
+    if (updatedProject) {
+      setDeliveryProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));
+    }
+  };
+
   // Handler: toggle flow status
   const handleToggleFlowStatus = async (flowId: string) => {
     const flow = flows.find(f => f.id === flowId);
@@ -595,6 +607,7 @@ export function App() {
                 onDeleteTask={handleDeleteWbsTask}
                 onNavigateToBriefing={() => setCurrentTab('delivery-briefing')}
                 initialProjectId={selectedWbsProjectId}
+                onSyncAdoTasks={handleAdoSyncTasks}
               />
             )}
 

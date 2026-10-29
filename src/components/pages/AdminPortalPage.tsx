@@ -42,6 +42,7 @@ import { useFrontendMeta } from '../../context/FrontendMetaContext';
 import { StaffMember, AuditLogEntry, FeatureFlagConfig, NavigationTab, AzureAdConfig, AzureAdGroupMapping, AzureAdTestResult } from '../../types';
 import { api } from '../../api/client';
 import { MicrosoftLogoSvg } from '../modals/AzureAdSsoModal';
+import { AdoImportModal, AzureDevOpsLogoSvg } from '../modals/AdoImportModal';
 import { RBACBanner } from '../common/RBACBanner';
 
 export const AdminPortalPage: React.FC = () => {
@@ -57,7 +58,8 @@ export const AdminPortalPage: React.FC = () => {
   } = useFrontendMeta();
 
   // Active Admin Tab
-  const [activeTab, setActiveTab] = useState<'meta' | 'features' | 'rbac' | 'sso' | 'staff' | 'audit'>('meta');
+  const [activeTab, setActiveTab] = useState<'meta' | 'features' | 'rbac' | 'sso' | 'ado' | 'staff' | 'audit'>('meta');
+  const [isAdoModalOpen, setIsAdoModalOpen] = useState(false);
 
   // Form states for Meta Management
   const [appName, setAppName] = useState(meta.appName);
@@ -504,6 +506,7 @@ export const AdminPortalPage: React.FC = () => {
           { id: 'features' as const, label: 'Feature Flags & Modules', icon: Flag },
           { id: 'rbac' as const, label: 'RBAC Permission Matrix', icon: Lock },
           { id: 'sso' as const, label: 'Azure AD & Entra ID SSO', icon: KeyRound },
+          { id: 'ado' as const, label: 'Azure DevOps (ADO)', icon: Server },
           { id: 'staff' as const, label: 'Staff Directory & Roles', icon: Users },
           { id: 'audit' as const, label: 'Security & Audit Logs', icon: FileText },
         ].map(tab => {
@@ -1408,6 +1411,110 @@ export const AdminPortalPage: React.FC = () => {
         </div>
       )}
 
+      {/* Tab: Azure DevOps Ingestion & Synchronizer */}
+      {activeTab === 'ado' && (
+        <div className="space-y-4">
+          {/* Top Status & Launch Bar */}
+          <div className="bg-gradient-to-r from-blue-900/40 via-sky-950/30 to-indigo-900/40 border border-blue-500/30 rounded-2xl p-5 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <div className="p-3 bg-blue-600/20 border border-blue-500/40 rounded-xl">
+                <AzureDevOpsLogoSvg className="w-8 h-8 text-blue-400" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-bold text-white">
+                    Azure DevOps (ADO) Work Item &amp; Sprint Synchronization
+                  </h3>
+                  <span className="px-2 py-0.5 text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded-full">
+                    REST API v7.1
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
+                  Enterprise-grade ingestion engine connecting Microsoft Azure DevOps boards with arQuonCX WBS deliverables, real-time sprint burndown, and executive C-Suite delivery briefings.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => setIsAdoModalOpen(true)}
+                className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer"
+              >
+                <AzureDevOpsLogoSvg className="w-4 h-4 text-white" />
+                <span>Launch ADO Ingestion Console</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-white dark:bg-[#0E162E] p-4 rounded-xl border border-slate-200 dark:border-[#1E2D52] shadow-2xs">
+              <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-2">
+                <span className="font-bold uppercase tracking-wider">Default Organization</span>
+                <Globe className="w-4 h-4 text-blue-500" />
+              </div>
+              <div className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                https://dev.azure.com/arQuon-Enterprise
+              </div>
+              <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-2 flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                TLS 1.3 Verified • Latency: 54ms
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-[#0E162E] p-4 rounded-xl border border-slate-200 dark:border-[#1E2D52] shadow-2xs">
+              <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-2">
+                <span className="font-bold uppercase tracking-wider">Sync Mechanism</span>
+                <RefreshCw className="w-4 h-4 text-purple-500" />
+              </div>
+              <div className="text-sm font-bold text-slate-900 dark:text-white">
+                Bi-Directional + Service Hooks
+              </div>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-2">
+                Real-time Webhook listener receiving state &amp; work changes
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-[#0E162E] p-4 rounded-xl border border-slate-200 dark:border-[#1E2D52] shadow-2xs">
+              <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-2">
+                <span className="font-bold uppercase tracking-wider">Synchronized Accounts</span>
+                <Server className="w-4 h-4 text-indigo-500" />
+              </div>
+              <div className="text-sm font-bold text-slate-900 dark:text-white">
+                SHPL, ArcelorMittal, Indorama
+              </div>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-2">
+                Automatic rollup into executive confidence scores
+              </div>
+            </div>
+          </div>
+
+          {/* Webhook Endpoint Instructions */}
+          <div className="bg-white dark:bg-[#0E162E] p-5 rounded-2xl border border-slate-200 dark:border-[#1E2D52] shadow-2xs space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
+              <Globe className="w-4 h-4 text-blue-500" />
+              Azure DevOps Service Hook Webhook Integration
+            </h4>
+            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+              To trigger instantaneous updates in arQuonCX whenever an engineer completes a task, closes a bug, or moves a story on the Azure Boards Kanban, configure this webhook in your Azure DevOps Project Settings under <strong>Service Hooks &gt; Web Hooks</strong>.
+            </p>
+            <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between font-mono text-xs">
+              <span className="text-blue-600 dark:text-blue-400">https://api.arquoncx.io/api/v1/integrations/ado/webhook</span>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText('https://api.arquoncx.io/api/v1/integrations/ado/webhook');
+                }}
+                className="text-[11px] font-sans font-semibold text-slate-600 dark:text-slate-400 hover:text-blue-600 cursor-pointer"
+              >
+                Copy URL
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Tab 4: Staff Directory & User Role Assignment */}
       {activeTab === 'staff' && (
         <div className="bg-white dark:bg-[#0E162E] p-5 rounded-2xl border border-slate-200 dark:border-[#1E2D52] shadow-2xs space-y-4">
@@ -1801,6 +1908,12 @@ export const AdminPortalPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Azure DevOps Ingestion Modal */}
+      <AdoImportModal
+        isOpen={isAdoModalOpen}
+        onClose={() => setIsAdoModalOpen(false)}
+      />
     </div>
   );
 };

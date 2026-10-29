@@ -12,10 +12,18 @@ import {
 // In-memory state for live WBS tasks
 let wbsTasks: WbsTask[] = [...MOCK_WBS_TASKS];
 
+export function getWbsTasksList(): WbsTask[] {
+  return wbsTasks;
+}
+
+export function setWbsTasksList(tasks: WbsTask[]): void {
+  wbsTasks = tasks;
+}
+
 /**
  * Synchronize project's executive metrics from WBS tasks.
  */
-function syncProjectFromWbs(projectId: string): DeliveryProject | undefined {
+export function syncProjectFromWbs(projectId: string): DeliveryProject | undefined {
   const project = deliveryProjects.find(p => p.id === projectId);
   if (!project) return undefined;
 

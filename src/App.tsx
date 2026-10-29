@@ -564,9 +564,12 @@ export function App() {
             {currentTab === 'overview' && (
               <OverviewPage
                 accounts={accounts}
+                deliveryProjects={deliveryProjects}
+                tasks={wbsTasks}
                 onSelectAccount={setSelectedAccount}
                 onNavigateTab={setCurrentTab}
                 onOpenFlowSimulator={() => setIsFlowSimulatorOpen(true)}
+                onSelectDeliveryProject={handleSelectDeliveryProject}
               />
             )}
 

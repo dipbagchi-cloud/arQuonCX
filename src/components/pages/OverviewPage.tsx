@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   Users, 
   TrendingUp, 
@@ -12,7 +12,20 @@ import {
   CheckCircle2,
   Clock,
   Radio,
-  ExternalLink
+  ExternalLink,
+  Briefcase,
+  Calendar,
+  Building2,
+  Target,
+  Flame,
+  CreditCard,
+  ChevronRight,
+  CheckSquare,
+  Layers,
+  AlertCircle,
+  FileText,
+  Check,
+  BarChart2
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -27,13 +40,17 @@ import {
 } from 'recharts';
 import { MetricCard } from '../common/MetricCard';
 import { HealthBadge, PlanBadge } from '../common/Badge';
-import { Account, NavigationTab } from '../../types';
+import { Account, NavigationTab, DeliveryProject, WbsTask } from '../../types';
+import { MOCK_DELIVERY_PROJECTS } from '../../data/mockData';
 
 interface OverviewPageProps {
   accounts: Account[];
+  deliveryProjects?: DeliveryProject[];
+  tasks?: WbsTask[];
   onSelectAccount: (account: Account) => void;
   onNavigateTab: (tab: NavigationTab) => void;
   onOpenFlowSimulator: () => void;
+  onSelectDeliveryProject?: (project: DeliveryProject) => void;
 }
 
 const USER_TREND_DATA = [
@@ -56,106 +73,471 @@ const RECENT_ACTIVITY_STREAM = [
   { id: 2, user: 'Dr. Aris Vance', account: 'NovaScale BioTech', event: 'Submitted NPS rating: 10/10 ("Promoter")', time: '34m ago', type: 'nps' },
   { id: 3, user: 'Hans Gruber', account: 'Vortex Logistics', event: 'Dropped off step 2 of Funnel', time: '1h ago', type: 'alert' },
   { id: 4, user: 'Maya Lin', account: 'Luminary Media Tech', event: 'Maxed out seat license limit (25/25)', time: '2h ago', type: 'expansion' },
-  { id: 5, user: 'Keith O\'Connor', account: 'SentryPay Global', event: 'Exported Executive CSV Summary', time: '3h ago', type: 'feature' }
+  { id: 5, user: "Keith O'Connor", account: 'SentryPay Global', event: 'Exported Executive CSV Summary', time: '3h ago', type: 'feature' }
 ];
 
 export const OverviewPage: React.FC<OverviewPageProps> = ({
-  accounts,
+  accounts = [],
+  deliveryProjects: propProjects,
+  tasks = [],
   onSelectAccount,
   onNavigateTab,
   onOpenFlowSimulator,
+  onSelectDeliveryProject,
 }) => {
+  const projects = propProjects && propProjects.length > 0 ? propProjects : MOCK_DELIVERY_PROJECTS;
   const atRiskAccounts = accounts.filter(a => a.healthTier === 'at-risk');
+
+  // Executive Metric Calculations
+  const totalDeliveryArr = useMemo(() => {
+    return projects.reduce((s, p) => s + (p.arr || 0), 0);
+  }, [projects]);
+
+  const totalSaasArr = useMemo(() => {
+    return accounts.reduce((s, a) => s + (a.arr || 0), 0);
+  }, [accounts]);
+
+  const totalPortfolioArr = totalDeliveryArr + (totalSaasArr || 1420000);
+
+  const avgDeliveryProgress = useMemo(() => {
+    if (projects.length === 0) return 0;
+    const sum = projects.reduce((s, p) => s + (p.phaseProgress !== undefined ? p.phaseProgress : 0), 0);
+    return Math.round(sum / projects.length);
+  }, [projects]);
+
+  const totalHoursAllocated = useMemo(() => {
+    return projects.reduce((s, p) => s + (p.hoursAllocated || 200), 0);
+  }, [projects]);
+
+  const totalHoursBurned = useMemo(() => {
+    return projects.reduce((s, p) => s + (p.hoursBurned !== undefined ? p.hoursBurned : 0), 0);
+  }, [projects]);
+
+  // Critical Blockers
+  const blockedProjects = useMemo(() => {
+    return projects.filter(p => p.currentBlocker || p.csuiteActionNeeded);
+  }, [projects]);
+
+  // Payment Milestones & Commercial Tranche Schedule
+  const paymentMilestones = useMemo(() => {
+    return [
+      {
+        id: 'pm-shpl-1',
+        projectId: 'proj-shpl',
+        client: 'SHPL (Saswane Habitats)',
+        domain: 'qgpt.saswanehabitats.com',
+        planTier: 'Enterprise',
+        contractArr: 1500000,
+        trancheName: 'Phase A: Knowledge Layer Sign-off (100% Deployed)',
+        trancheAmount: 450000,
+        tranchePercentage: 30,
+        status: 'ready-to-invoice' as const,
+        dueDate: '2026-11-20',
+        sponsor: 'Sarv (Executive Sponsor)',
+        lead: 'Shubham (Forward Deployed Engineer)',
+        nextExpansion: 'Phase B: Autonomous Maintenance Agents ($1,050,000 ARR)',
+        note: 'Knowledge layer validation signed off by Sarv. Invoice approved for submission.'
+      },
+      {
+        id: 'pm-arcelor-1',
+        projectId: 'proj-arcelor',
+        client: 'Arcelor Mittal H&S',
+        domain: 'hsqgptpoc.arcelormittal.com',
+        planTier: 'Enterprise',
+        contractArr: 10000,
+        trancheName: 'Phase 1: Health & Safety Audit Cutover POC (95%)',
+        trancheAmount: 10000,
+        tranchePercentage: 100,
+        status: 'invoiced' as const,
+        dueDate: '2026-12-05',
+        sponsor: 'Gustavo (VP Safety Compliance)',
+        lead: 'Trevor (Forward Deployed Engineer)',
+        nextExpansion: 'Multi-Plant European Rollout Option ($180,000 ARR)',
+        note: 'POC fees invoiced. Awaiting final audit trail validation on Dec 5.'
+      },
+      {
+        id: 'pm-indorama-1',
+        projectId: 'proj-indorama',
+        client: 'Indorama Corp',
+        domain: 'qgpt.indorama.com',
+        planTier: 'Scale',
+        contractArr: 0,
+        trancheName: 'Phase 1: Finance Ops Annual License Conversion',
+        trancheAmount: 250000,
+        tranchePercentage: 100,
+        status: 'blocked' as const,
+        dueDate: '2026-11-12',
+        sponsor: 'Rohit (Finance Controller)',
+        lead: 'Dip Bagchi (Director CS / FDE)',
+        nextExpansion: 'APAC Finance Automation Expansion ($400,000 ARR)',
+        note: 'Payment blocked by IRC instance rendering failure. Amartya checking infra.'
+      }
+    ];
+  }, []);
 
   return (
     <div className="space-y-4">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">
-            Customer Success & Product Adoption Overview
-          </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Real-time telemetry, adoption health scores, and predictive churn indicators.
-          </p>
-        </div>
+      {/* 1. Executive Pulse Command Header */}
+      <div className="bg-gradient-to-r from-slate-900 via-[#0B1228] to-indigo-950 text-white p-4 sm:p-5 rounded-2xl border border-indigo-900/50 shadow-md">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-indigo-500/20 text-indigo-400">
+                <BarChart2 className="w-5 h-5" />
+              </div>
+              <h1 className="text-base sm:text-lg font-bold text-white tracking-tight">
+                Executive Portfolio Overview &amp; Delivery Command
+              </h1>
+              <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                Q4 Live Portfolio
+              </span>
+            </div>
+            <p className="text-xs text-indigo-200/80 mt-1 max-w-3xl leading-relaxed">
+              Consolidated executive intelligence tracking commercial contract ARR, delivery milestones, payment tranches, and operational engineering burn across Forward Deployed Engineering (FDE) accounts.
+            </p>
+          </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => onNavigateTab('accounts')}
-            className="px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-[#111C35] border border-slate-200 dark:border-[#22355C] rounded-lg hover:bg-slate-50 dark:hover:bg-[#152342] transition-colors shadow-2xs cursor-pointer"
-          >
-            View All Accounts →
-          </button>
-          <button
-            onClick={onOpenFlowSimulator}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-xs transition-all hover:scale-[1.02] cursor-pointer"
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Launch In-App Tour</span>
-          </button>
+          {/* Quick Action Navigation Bar */}
+          <div className="flex items-center gap-2 flex-wrap shrink-0">
+            <button
+              onClick={() => onNavigateTab('delivery-briefing')}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-xl shadow-xs transition-all cursor-pointer"
+            >
+              <Briefcase className="w-3.5 h-3.5" />
+              <span>C-Suite Briefing</span>
+            </button>
+            <button
+              onClick={() => onNavigateTab('deployment-wbs')}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-200 bg-white/10 hover:bg-white/15 border border-white/15 rounded-xl transition-all cursor-pointer"
+            >
+              <Flame className="w-3.5 h-3.5 text-amber-400" />
+              <span>WBS &amp; Burndown</span>
+            </button>
+            <button
+              onClick={() => onNavigateTab('accounts')}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-200 bg-white/10 hover:bg-white/15 border border-white/15 rounded-xl transition-all cursor-pointer"
+            >
+              <Users className="w-3.5 h-3.5 text-sky-400" />
+              <span>Accounts 360</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* KPI Metric Cards Grid */}
+      {/* 2. Top 5 Executive KPI Metric Ribbon */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         <MetricCard
-          title="Product Adoption Score"
-          value="78.4%"
-          change={+4.2}
-          changeText="vs last 30d"
-          icon={<TrendingUp className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />}
-          subtitle="Top: 92% (Acme Cloud)"
+          title="Total Portfolio ARR"
+          value={`$${(totalPortfolioArr / 1000000).toFixed(2)}M`}
+          change={+18.4}
+          changeText="vs Q3 baseline"
+          icon={<DollarSign className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />}
+          subtitle={`$${(totalDeliveryArr / 1000000).toFixed(2)}M Delivery + $${(totalSaasArr / 1000000).toFixed(2)}M SaaS`}
+          onClick={() => onNavigateTab('accounts')}
         />
 
         <MetricCard
-          title="Monthly Active Users"
-          value="38,420"
-          change={+12.8}
-          changeText="MAU (+4.8k DAU)"
-          icon={<Users className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />}
-          subtitle="Stickiness: 34.2%"
-        />
-
-        <MetricCard
-          title="Average Health Index"
-          value="84 / 100"
-          change={-1.5}
-          changeText="14 flagged at risk"
-          icon={<HeartHandshake className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />}
-          subtitle="Enterprise avg: 89/100"
+          title="Payment Tranches Due"
+          value="$450,000"
+          change={+30.0}
+          changeText="Phase A Milestone"
+          icon={<CreditCard className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />}
+          subtitle="Next Horizon: $1.05M Phase B Contract"
           variant="highlight"
         />
 
         <MetricCard
-          title="NPS Sentiment"
-          value="+48 NPS"
-          change={+6.0}
-          changeText="62% Promoters"
-          icon={<MessageSquareHeart className="w-4 h-4 text-violet-600 dark:text-violet-400" />}
-          subtitle="842 verified ratings"
+          title="Enterprise Delivery Pace"
+          value={`${avgDeliveryProgress}%`}
+          change={+8.2}
+          changeText="3 Live Deployments"
+          icon={<Target className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />}
+          subtitle="SHPL 100% • Arcelor 95% • Indorama 80%"
+          onClick={() => onNavigateTab('deployment-wbs')}
         />
 
         <MetricCard
-          title="Total Managed ARR"
-          value="$1.42M"
-          change={+8.4}
-          changeText="$124k in pipeline"
-          icon={<DollarSign className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />}
-          subtitle="Net Retention: 118%"
+          title="Engineering Hours Burn"
+          value={`${totalHoursBurned}h / ${totalHoursAllocated}h`}
+          change={-335}
+          changeText="152% Budget Ratio"
+          icon={<Flame className="w-4 h-4 text-amber-600 dark:text-amber-400" />}
+          subtitle="Overrun in Indorama (IRC Technical Spike)"
+          variant="warning"
+          onClick={() => onNavigateTab('deployment-wbs')}
+        />
+
+        <MetricCard
+          title="Commercial ARR At-Risk"
+          value="$250,000"
+          change={-1}
+          changeText="1 Active Escalation"
+          icon={<AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400" />}
+          subtitle="Indorama IRC infra needs product direction"
+          variant="danger"
+          onClick={() => onNavigateTab('delivery-briefing')}
         />
       </div>
 
-      {/* Charts Section: Adoption & Health Breakdown */}
+      {/* 3. C-Suite Blocker & Escalation Alert Box (High Visibility) */}
+      {blockedProjects.length > 0 && (
+        <div className="bg-gradient-to-r from-rose-950/40 via-[#1E1128] to-slate-900 border border-rose-500/40 rounded-2xl p-4 text-slate-200 shadow-sm space-y-2.5">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-start sm:items-center gap-2.5">
+              <div className="p-1.5 rounded-lg bg-rose-500/20 text-rose-400 shrink-0 mt-0.5 sm:mt-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-rose-300">
+                    C-Suite Critical Action Required
+                  </span>
+                  <span className="text-[10px] font-mono px-2 py-0.2 rounded-full bg-rose-500/20 text-rose-300 font-bold border border-rose-500/30">
+                    Escalation #IND-01
+                  </span>
+                </div>
+                <h4 className="text-sm font-bold text-white mt-0.5">
+                  Indorama Corp ($250,000 ARR Conversion Blocked by IRC Rendering Outage)
+                </h4>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => onNavigateTab('delivery-briefing')}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white transition-all shadow-xs cursor-pointer"
+              >
+                Open Briefing &rarr;
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs bg-black/20 p-3 rounded-xl border border-white/5">
+            <div>
+              <span className="text-[10px] font-bold text-rose-300 uppercase tracking-wider block">Technical Blocker:</span>
+              <p className="text-slate-300 text-xs mt-0.5">
+                The IRC instance is not rendering due to which arQuon testing team is unable to test it. Amartya is checking the infra for IRC.
+              </p>
+            </div>
+            <div>
+              <span className="text-[10px] font-bold text-amber-300 uppercase tracking-wider block">Required C-Suite Direction:</span>
+              <p className="text-slate-300 text-xs mt-0.5">
+                Needed Direction for the product team to ascertain the priority of the initiative to unblock testing and lock in $250k ARR conversion.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 4. Payment Milestones & Commercial Horizon Table / Cards */}
+      <div className="bg-white dark:bg-[#0E162E] p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-[#1E2D52] shadow-2xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-100 dark:border-[#1E2D52]">
+          <div>
+            <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+              <CreditCard className="w-4 h-4 text-emerald-500" />
+              Contract Payment Milestones &amp; Revenue Invoicing Horizon
+            </h3>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+              Contractual payment tranches linked directly to technical delivery verification and client executive sign-off.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-[11px] font-mono px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-200 dark:border-emerald-800">
+              $460,000 Active Tranches
+            </span>
+            <span className="text-[11px] font-mono px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-bold border border-indigo-200 dark:border-indigo-800">
+              $1.23M Expansion Horizon
+            </span>
+          </div>
+        </div>
+
+        {/* Milestone Cards Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {paymentMilestones.map((pm) => {
+            const isReady = pm.status === 'ready-to-invoice';
+            const isInvoiced = pm.status === 'invoiced';
+            const isBlocked = pm.status === 'blocked';
+
+            return (
+              <div 
+                key={pm.id}
+                className={`p-3.5 rounded-xl border transition-all flex flex-col justify-between space-y-3 ${
+                  isReady 
+                    ? 'bg-emerald-50/40 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/60'
+                    : isBlocked
+                    ? 'bg-rose-50/40 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/60'
+                    : 'bg-slate-50/60 dark:bg-[#111C35] border-slate-200 dark:border-[#1E2D52]'
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="font-bold text-slate-900 dark:text-white truncate max-w-[160px]">
+                      {pm.client}
+                    </span>
+                    <span className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full border ${
+                      isReady 
+                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200 border-emerald-300'
+                        : isBlocked
+                        ? 'bg-rose-100 text-rose-800 dark:bg-rose-900/60 dark:text-rose-200 border-rose-300'
+                        : 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/60 dark:text-indigo-200 border-indigo-300'
+                    }`}>
+                      {isReady ? '✓ Ready To Invoice' : isBlocked ? '⚠️ Blocked' : 'Invoiced'}
+                    </span>
+                  </div>
+
+                  <div className="mt-2 flex items-baseline justify-between">
+                    <span className="text-xl font-bold font-mono text-slate-900 dark:text-white">
+                      ${pm.trancheAmount.toLocaleString()}
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-semibold">
+                      {pm.tranchePercentage}% of Contract
+                    </span>
+                  </div>
+
+                  <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 mt-1 leading-snug">
+                    {pm.trancheName}
+                  </p>
+
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1.5 line-clamp-2">
+                    {pm.note}
+                  </p>
+                </div>
+
+                <div className="pt-2.5 border-t border-slate-200/60 dark:border-slate-800 text-[10px] space-y-1">
+                  <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                    <span>Target Date: <strong className="text-slate-700 dark:text-slate-300">{pm.dueDate}</strong></span>
+                    <span>Sponsor: <strong className="text-slate-700 dark:text-slate-300">{pm.sponsor.split(' ')[0]}</strong></span>
+                  </div>
+                  <div className="text-[9px] text-indigo-600 dark:text-indigo-400 font-medium truncate">
+                    Horizon: {pm.nextExpansion}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 5. Enterprise Delivery Plan & Milestone Roadmap */}
+      <div className="bg-white dark:bg-[#0E162E] p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-[#1E2D52] shadow-2xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-100 dark:border-[#1E2D52]">
+          <div>
+            <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+              <Layers className="w-4 h-4 text-indigo-500" />
+              Enterprise Delivery Plans &amp; Go-Live Horizons
+            </h3>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+              Live execution tracking across Forward Deployed Engineering (FDE) pods, milestone velocity, and cutover targets.
+            </p>
+          </div>
+          <button
+            onClick={() => onNavigateTab('deployment-wbs')}
+            className="flex items-center gap-1 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+          >
+            <span>Open Sprint WBS Board &rarr;</span>
+          </button>
+        </div>
+
+        {/* Project Delivery Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {projects.map((proj) => {
+            const isCompleted = proj.phaseProgress === 100;
+            const isAtRisk = proj.deliveryHealth === 'at-risk' || proj.deliveryHealth === 'critical';
+            const overrun = (proj.hoursBurned || 0) - (proj.hoursAllocated || 200);
+
+            return (
+              <div 
+                key={proj.id}
+                className="bg-slate-50/70 dark:bg-[#111C35] p-4 rounded-xl border border-slate-200/80 dark:border-[#22355C] shadow-2xs space-y-3 flex flex-col justify-between"
+              >
+                <div className="space-y-2.5">
+                  {/* Card Header */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950/80 border border-indigo-200 dark:border-indigo-800 flex items-center justify-center font-bold text-indigo-600 dark:text-indigo-400 text-xs shrink-0">
+                        {proj.accountName.slice(0, 2).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                          {proj.accountName}
+                        </h4>
+                        <p className="text-[10px] text-slate-400 font-mono truncate">{proj.domain}</p>
+                      </div>
+                    </div>
+                    <span className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full border shrink-0 ${
+                      proj.deliveryHealth === 'on-track' 
+                        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                        : 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                    }`}>
+                      {proj.deliveryHealth}
+                    </span>
+                  </div>
+
+                  {/* Phase & Progress Bar */}
+                  <div>
+                    <div className="flex items-center justify-between text-[11px] mb-1">
+                      <span className="font-semibold text-slate-700 dark:text-slate-300 truncate max-w-[180px]">
+                        {proj.deliveryPhase}
+                      </span>
+                      <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                        {proj.phaseProgress}%
+                      </span>
+                    </div>
+                    <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          isCompleted ? 'bg-emerald-500' : isAtRisk ? 'bg-amber-500' : 'bg-indigo-600'
+                        }`}
+                        style={{ width: `${proj.phaseProgress}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Target Dates & Hours */}
+                  <div className="grid grid-cols-2 gap-2 text-[10px] pt-1 border-t border-slate-200/60 dark:border-slate-800">
+                    <div>
+                      <span className="text-slate-400 block">Go-Live Target</span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200 font-mono">
+                        {proj.baselineTargetDate}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block">Hours (Burn/Budget)</span>
+                      <span className={`font-semibold font-mono ${overrun > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-800 dark:text-slate-200'}`}>
+                        {proj.hoursBurned || 0}h / {proj.hoursAllocated || 200}h {overrun > 0 && `(+${overrun}h)`}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer details & Action */}
+                <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800 flex items-center justify-between text-[10px]">
+                  <div className="truncate text-slate-500 dark:text-slate-400">
+                    Lead: <strong className="text-indigo-600 dark:text-indigo-400">{typeof proj.deliveryLead === 'object' ? proj.deliveryLead?.name : proj.deliveryLead}</strong>
+                  </div>
+                  <button
+                    onClick={() => onNavigateTab('delivery-briefing')}
+                    className="text-indigo-600 dark:text-indigo-400 font-bold hover:underline cursor-pointer shrink-0"
+                  >
+                    Briefing &rarr;
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 6. Charts Section: User Adoption Trends & Health Distribution */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* User Activity & Product Adoption Curve */}
         <div className="lg:col-span-2 p-4 bg-white dark:bg-[#0E162E] rounded-xl border border-slate-200/80 dark:border-[#1E2D52] shadow-2xs">
           <div className="flex items-center justify-between mb-3">
             <div>
               <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
-                User Adoption & Active User Trends
+                User Adoption &amp; Active User Trends
               </h3>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400">DAU growth vs Product Adoption % (Last 6 Months)</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">DAU growth vs Product Adoption % across active deployments</p>
             </div>
             <div className="flex items-center gap-3 text-xs">
               <span className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300 text-[11px]">
@@ -195,12 +577,12 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
-                Health Tier Distribution
+                Portfolio Health Distribution
               </h3>
-              <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">41 Total</span>
+              <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">41 Total Accounts</span>
             </div>
             <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3">
-              Breakdown based on composite telemetry.
+              Composite telemetry breakdown across usage, support, and executive champions.
             </p>
 
             <div className="h-40 w-full">
@@ -220,19 +602,19 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
 
           <div className="pt-3 border-t border-slate-100 dark:border-[#1E2D52] flex items-center justify-between text-xs">
             <span className="text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-1 text-[11px]">
-              <AlertTriangle className="w-3 h-3" /> 4 Critical Accounts
+              <AlertTriangle className="w-3 h-3" /> 4 Critical Accounts Flagged
             </span>
             <button 
               onClick={() => onNavigateTab('accounts')}
               className="text-indigo-600 dark:text-indigo-400 font-semibold hover:underline text-[11px] cursor-pointer"
             >
-              Triage Risks →
+              Triage Risks &rarr;
             </button>
           </div>
         </div>
       </div>
 
-      {/* Two Column Section: At-Risk Churn Alerts & Real-time Live Event Ticker */}
+      {/* 7. Bottom Section: Accounts Requiring Immediate Action & Real-time Stream */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* At-Risk Accounts Requiring Immediate Outreach */}
         <div className="lg:col-span-2 p-4 bg-white dark:bg-[#0E162E] rounded-xl border border-slate-200/80 dark:border-[#1E2D52] shadow-2xs">
@@ -243,7 +625,7 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
               </div>
               <div>
                 <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
-                  Accounts Requiring Immediate Action
+                  Accounts Requiring Immediate Attention
                 </h3>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400">Low health score, drop in login velocity, or pending renewal</p>
               </div>
@@ -301,7 +683,7 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
               onClick={() => onNavigateTab('flows')}
               className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
             >
-              Configure Flow →
+              Configure Flow &rarr;
             </button>
           </div>
         </div>
@@ -340,7 +722,7 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
               onClick={() => onNavigateTab('analytics')}
               className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
             >
-              Explore Full Product Telemetry →
+              Explore Full Product Telemetry &rarr;
             </button>
           </div>
         </div>

@@ -10,7 +10,7 @@ interface MetricCardProps {
   subtitle?: string;
   badge?: React.ReactNode;
   onClick?: () => void;
-  variant?: 'default' | 'highlight' | 'warning';
+  variant?: 'default' | 'highlight' | 'warning' | 'danger';
 }
 
 export const MetricCard: React.FC<MetricCardProps> = ({
@@ -30,7 +30,8 @@ export const MetricCard: React.FC<MetricCardProps> = ({
   const variantStyles = {
     default: 'bg-white dark:bg-[#0E162E] border-slate-200/80 dark:border-[#1E2D52] hover:border-slate-300 dark:hover:border-[#2C4175]',
     highlight: 'bg-indigo-50/50 dark:bg-indigo-950/30 border-indigo-200 dark:border-indigo-800/60 hover:border-indigo-300 dark:hover:border-indigo-700',
-    warning: 'bg-amber-50/50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/60 hover:border-amber-300 dark:hover:border-amber-700'
+    warning: 'bg-amber-50/50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/60 hover:border-amber-300 dark:hover:border-amber-700',
+    danger: 'bg-rose-50/50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800/60 hover:border-rose-300 dark:hover:border-rose-700'
   };
 
   return (

@@ -8,7 +8,62 @@ export type NavigationTab =
   | 'surveys' 
   | 'analytics' 
   | 'resource-center' 
-  | 'integrations';
+  | 'integrations'
+  | 'admin-portal';
+
+export interface FrontendMeta {
+  appName: string;
+  tagline: string;
+  pageTitleSuffix: string;
+  logoTheme: 'indigo' | 'emerald' | 'violet' | 'dark';
+  logoUrl?: string;
+  announcementBanner: {
+    enabled: boolean;
+    message: string;
+    type: 'info' | 'warning' | 'success' | 'critical';
+    dismissible: boolean;
+    linkText?: string;
+    linkUrl?: string;
+  };
+  supportEmail: string;
+  docsUrl: string;
+  maintenanceMode: boolean;
+  liveIngestionEnabled: boolean;
+}
+
+export interface FeatureFlagConfig {
+  deliveryBriefing: boolean;
+  deploymentWbs: boolean;
+  accounts360: boolean;
+  usersSegments: boolean;
+  adoptionFlows: boolean;
+  surveysNps: boolean;
+  productAnalytics: boolean;
+  resourceCenter: boolean;
+  integrations: boolean;
+  aiForecasting: boolean;
+}
+
+export interface StaffMember {
+  id: string;
+  name: string;
+  email: string;
+  avatar: string;
+  role: string;
+  title: string;
+  department: string;
+  status: 'active' | 'suspended';
+  lastLogin: string;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  action: string;
+  actor: string;
+  details: string;
+  severity: 'info' | 'warning' | 'security';
+  timestamp: string;
+}
 
 export type HealthTier = 'healthy' | 'neutral' | 'at-risk';
 export type PlanTier = 'Enterprise' | 'Scale' | 'Starter';

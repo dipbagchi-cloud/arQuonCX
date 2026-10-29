@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { AlertTriangle } from 'lucide-react';
 import { Sidebar } from './components/layout/Sidebar';
 import { Topbar } from './components/layout/Topbar';
+import { AnnouncementBanner } from './components/layout/AnnouncementBanner';
 import { RBACBanner } from './components/common/RBACBanner';
 import { ResourceCenterWidget } from './components/layout/ResourceCenterWidget';
 import { OverviewPage } from './components/pages/OverviewPage';
@@ -13,6 +15,8 @@ import { ResourceCenterPage } from './components/pages/ResourceCenterPage';
 import { IntegrationsPage } from './components/pages/IntegrationsPage';
 import { DeliveryBriefingPage } from './components/pages/DeliveryBriefingPage';
 import { DeploymentWBSPage } from './components/pages/DeploymentWBSPage';
+import { AdminPortalPage } from './components/pages/AdminPortalPage';
+import { useFrontendMeta } from './context/FrontendMetaContext';
 
 import { LandingPage } from './components/pages/LandingPage';
 import { LoginPage } from './components/pages/LoginPage';
@@ -59,6 +63,7 @@ const getInitialView = (): AppView => {
 };
 
 export function App() {
+  const { meta, featureFlags } = useFrontendMeta();
   // Navigation / Auth View: 'landing', 'login', 'app', 'privacy', 'terms', 'security'
   const [appView, setAppView] = useState<AppView>(getInitialView);
 
@@ -465,7 +470,12 @@ export function App() {
   if (appView === 'login') {
     return (
       <LoginPage
-        onLoginSuccess={() => navigateTo('app')}
+        onLoginSuccess={(targetTab) => {
+          if (targetTab) {
+            setCurrentTab(targetTab);
+          }
+          navigateTo('app');
+        }}
         onBackToHome={() => navigateTo('landing')}
       />
     );
@@ -509,38 +519,51 @@ export function App() {
 
   // 6. Render Main Customer Success Application
   return (
-    <div className="flex h-screen w-full bg-slate-50 dark:bg-[#070B19] overflow-hidden font-sans text-slate-800 dark:text-slate-100 transition-colors duration-150">
-      {/* Global Sidebar */}
-      <Sidebar
-        currentTab={currentTab}
-        onSelectTab={setCurrentTab}
-        collapsed={sidebarCollapsed}
-        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-        onGoToHome={() => navigateTo('landing')}
-        onLogout={() => navigateTo('login')}
-      />
+    <div className="flex flex-col h-screen w-full bg-slate-50 dark:bg-[#070B19] overflow-hidden font-sans text-slate-800 dark:text-slate-100 transition-colors duration-150">
+      {/* Global Meta Announcement Banner */}
+      <AnnouncementBanner />
 
-      {/* Main Content Viewport */}
-      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
-        {/* Top Header */}
-        <Topbar
+      <div className="flex flex-1 min-h-0 w-full overflow-hidden">
+        {/* Global Sidebar */}
+        <Sidebar
           currentTab={currentTab}
-          onOpenFlowSimulator={() => setIsFlowSimulatorOpen(true)}
-          onOpenSurveyCreator={() => setIsCreateSurveyOpen(true)}
-          onOpenResourceCenter={() => setIsResourceCenterOpen(true)}
+          onSelectTab={setCurrentTab}
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
           onGoToHome={() => navigateTo('landing')}
           onLogout={() => navigateTo('login')}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          selectedDateRange={selectedDateRange}
-          onDateRangeChange={setSelectedDateRange}
         />
 
-        {/* Scrollable Page Body */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-5 md:p-6 text-[13px]">
-          <div className="max-w-7xl mx-auto space-y-4">
-            {/* Dynamic RBAC Role & Persona Access Control Banner */}
-            <RBACBanner />
+        {/* Main Content Viewport */}
+        <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+          {/* Top Header */}
+          <Topbar
+            currentTab={currentTab}
+            onOpenFlowSimulator={() => setIsFlowSimulatorOpen(true)}
+            onOpenSurveyCreator={() => setIsCreateSurveyOpen(true)}
+            onOpenResourceCenter={() => setIsResourceCenterOpen(true)}
+            onGoToHome={() => navigateTo('landing')}
+            onLogout={() => navigateTo('login')}
+            onNavigateTab={setCurrentTab}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            selectedDateRange={selectedDateRange}
+            onDateRangeChange={setSelectedDateRange}
+          />
+
+          {/* Scrollable Page Body */}
+          <main className="flex-1 overflow-y-auto p-4 sm:p-5 md:p-6 text-[13px]">
+            <div className="max-w-7xl mx-auto space-y-4">
+              {/* Dynamic RBAC Role & Persona Access Control Banner */}
+              <RBACBanner />
+
+              {/* Maintenance Mode Warning Notice if active */}
+              {meta.maintenanceMode && (
+                <div className="p-3 bg-amber-500/15 border border-amber-500/40 rounded-xl flex items-center gap-2.5 text-xs text-amber-800 dark:text-amber-300 font-medium">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-amber-500" />
+                  <span>Maintenance Mode Active: Platform is in scheduled upgrade mode. Non-admin operations are in read-only mode.</span>
+                </div>
+              )}
 
             {currentTab === 'overview' && (
               <OverviewPage
@@ -631,16 +654,23 @@ export function App() {
                 onToggleIntegration={handleToggleIntegration}
               />
             )}
+
+            {currentTab === 'admin-portal' && (
+              <AdminPortalPage />
+            )}
           </div>
         </main>
       </div>
+      </div>
 
       {/* Floating Interactive In-App Resource Center Widget (Persistent on screen) */}
-      <ResourceCenterWidget
-        isOpen={isResourceCenterOpen}
-        onToggle={() => setIsResourceCenterOpen(!isResourceCenterOpen)}
-        onLaunchTour={() => setIsFlowSimulatorOpen(true)}
-      />
+      {featureFlags.resourceCenter && (
+        <ResourceCenterWidget
+          isOpen={isResourceCenterOpen}
+          onToggle={() => setIsResourceCenterOpen(!isResourceCenterOpen)}
+          onLaunchTour={() => setIsFlowSimulatorOpen(true)}
+        />
+      )}
 
       {/* Account 360 Slideover Drawer */}
       <AccountDetailDrawer

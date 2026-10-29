@@ -16,11 +16,13 @@ import {
   LogOut,
   Lock,
   Briefcase,
-  ListChecks
+  ListChecks,
+  Sliders
 } from 'lucide-react';
 import { NavigationTab } from '../../types';
 import { BrandLogo } from '../common/BrandLogo';
 import { useAuth } from '../../context/AuthContext';
+import { useFrontendMeta } from '../../context/FrontendMetaContext';
 
 interface SidebarProps {
   currentTab: NavigationTab;
@@ -40,6 +42,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onLogout,
 }) => {
   const { user, role, can } = useAuth();
+  const { meta, isTabVisible } = useFrontendMeta();
+  const isAdmin = role === 'SUPER_ADMIN' || role === 'CS_OPS' || can('team:manage');
 
   const navItems = [
     {
@@ -101,8 +105,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'Integrations & SDK',
       icon: Plug,
       badge: can('integrations:manage') ? undefined : '🔒 Admin'
+    },
+    {
+      tab: 'admin-portal' as NavigationTab,
+      label: 'Admin & Meta Console',
+      icon: Sliders,
+      badge: 'Admin',
+      adminOnly: true
     }
   ];
+
+  const visibleNavItems = navItems.filter((item) => {
+    if ((item as any).adminOnly && !isAdmin) return false;
+    return isTabVisible(item.tab);
+  });
 
   return (
     <aside className={`relative flex flex-col bg-white dark:bg-[#0A1024] text-slate-700 dark:text-slate-300 border-r border-slate-200/80 dark:border-[#1B294A] transition-all duration-300 ease-in-out shrink-0 select-none z-30 ${collapsed ? 'w-16' : 'w-60'}`}>
@@ -117,7 +133,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             size="sm"
             showWordmark={!collapsed}
             badgeText="PROD"
-            subtitle="Customer Success Suite"
+            subtitle={meta.tagline || 'Customer Success Suite'}
           />
         </div>
 
@@ -150,7 +166,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             Platform Modules
           </div>
         )}
-        {navItems.map((item) => {
+        {visibleNavItems.map((item) => {
           const Icon = item.icon;
           const isActive = currentTab === item.tab;
           return (

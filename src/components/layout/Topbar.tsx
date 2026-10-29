@@ -11,7 +11,8 @@ import {
   Command,
   ExternalLink,
   Globe,
-  LogOut
+  LogOut,
+  Sliders
 } from 'lucide-react';
 import { ThemeToggle } from '../common/ThemeToggle';
 import { NavigationTab } from '../../types';
@@ -25,6 +26,7 @@ interface TopbarProps {
   onOpenResourceCenter: () => void;
   onGoToHome?: () => void;
   onLogout?: () => void;
+  onNavigateTab?: (tab: NavigationTab) => void;
   searchQuery: string;
   onSearchChange: (q: string) => void;
   selectedDateRange: string;
@@ -32,11 +34,13 @@ interface TopbarProps {
 }
 
 export const Topbar: React.FC<TopbarProps> = ({
+  currentTab,
   onOpenFlowSimulator,
   onOpenSurveyCreator,
   onOpenResourceCenter,
   onGoToHome,
   onLogout,
+  onNavigateTab,
   searchQuery,
   onSearchChange,
   selectedDateRange,
@@ -218,6 +222,22 @@ export const Topbar: React.FC<TopbarProps> = ({
           >
             <Globe className="w-3.5 h-3.5 text-indigo-500" />
             <span>Homepage</span>
+          </button>
+        )}
+
+        {/* Admin Console Shortcut */}
+        {(role === 'SUPER_ADMIN' || role === 'CS_OPS') && onNavigateTab && (
+          <button
+            onClick={() => onNavigateTab('admin-portal')}
+            className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
+              currentTab === 'admin-portal'
+                ? 'bg-purple-600 text-white border-transparent shadow-xs'
+                : 'text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/40 border-purple-200 dark:border-purple-800/60 hover:bg-purple-100 dark:hover:bg-purple-900/50'
+            }`}
+            title="Open Admin Console & Meta Management"
+          >
+            <Sliders className="w-3.5 h-3.5" />
+            <span>Admin Console</span>
           </button>
         )}
 

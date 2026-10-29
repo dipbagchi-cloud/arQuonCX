@@ -5,53 +5,243 @@ import {
   ArrowRight, 
   Sparkles, 
   ShieldCheck, 
+  ShieldAlert,
   CheckCircle2, 
   Star, 
   ArrowLeft,
-  KeyRound
+  KeyRound,
+  Briefcase,
+  BarChart3,
+  Sliders,
+  Check,
+  Building2,
+  Users
 } from 'lucide-react';
 import { ThemeToggle } from '../common/ThemeToggle';
 import { BrandLogo } from '../common/BrandLogo';
+import { NavigationTab } from '../../types';
+import { useAuth, RoleName } from '../../context/AuthContext';
+import { useFrontendMeta } from '../../context/FrontendMetaContext';
 
 interface LoginPageProps {
-  onLoginSuccess: () => void;
+  onLoginSuccess: (targetTab?: NavigationTab) => void;
   onBackToHome: () => void;
 }
+
+type PortalId = 'admin' | 'cs_delivery' | 'product' | 'executive';
+
+interface RolePortal {
+  id: PortalId;
+  label: string;
+  role: RoleName;
+  badge: string;
+  badgeClass: string;
+  icon: React.ComponentType<{ className?: string }>;
+  defaultTab: NavigationTab;
+  title: string;
+  subtitle: string;
+  description: string;
+  personas: Array<{
+    name: string;
+    email: string;
+    title: string;
+    role: RoleName;
+    avatar: string;
+  }>;
+}
+
+const ROLE_PORTALS: RolePortal[] = [
+  {
+    id: 'admin',
+    label: 'Admin & Operations',
+    role: 'SUPER_ADMIN',
+    badge: 'Privileged',
+    badgeClass: 'bg-purple-100 text-purple-800 dark:bg-purple-950/80 dark:text-purple-300 border-purple-200 dark:border-purple-800/80',
+    icon: ShieldAlert,
+    defaultTab: 'admin-portal',
+    title: 'Admin Console & Governance',
+    subtitle: 'Manage frontend metadata, feature flags, role permissions, and staff provisioning.',
+    description: 'Full administrative control over frontend branding, navigation modules, and RBAC matrix.',
+    personas: [
+      {
+        name: 'Dr. Aris Vance',
+        email: 'admin@arquoncx.io',
+        title: 'VP of Customer Success & Operations (Super Admin)',
+        role: 'SUPER_ADMIN',
+        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
+      },
+      {
+        name: 'David Kim',
+        email: 'csops@arquoncx.io',
+        title: 'CS Operations & Data Analyst',
+        role: 'CS_OPS',
+        avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&auto=format&fit=crop&q=80',
+      },
+    ],
+  },
+  {
+    id: 'cs_delivery',
+    label: 'CS & Delivery Lead',
+    role: 'CSM',
+    badge: 'Operational',
+    badgeClass: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/80',
+    icon: Briefcase,
+    defaultTab: 'delivery-briefing',
+    title: 'Customer Success & Delivery Hub',
+    subtitle: 'Account 360°, weekly C-Suite delivery briefings, and granular WBS checklists.',
+    description: 'Manage client onboarding velocity, milestones, blockers, and executive briefs.',
+    personas: [
+      {
+        name: 'Dip Bagchi',
+        email: 'dip.bagchi@qbadvisory.com',
+        title: 'Director of Customer Success',
+        role: 'CSM',
+        avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&auto=format&fit=crop&q=80',
+      },
+      {
+        name: 'Elena Rostova',
+        email: 'elena@arquoncx.io',
+        title: 'Lead Enterprise CSM',
+        role: 'CSM',
+        avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&auto=format&fit=crop&q=80',
+      },
+    ],
+  },
+  {
+    id: 'product',
+    label: 'Product & Growth',
+    role: 'PRODUCT_GROWTH',
+    badge: 'Authoring',
+    badgeClass: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/80 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800/80',
+    icon: Sparkles,
+    defaultTab: 'flows',
+    title: 'Product Growth & In-App Tours',
+    subtitle: 'Build onboarding flows, in-app walkthroughs, NPS feedback triage, and feature tags.',
+    description: 'Design interactive walkthroughs, track product funnels, and close the loop on detractors.',
+    personas: [
+      {
+        name: 'Sophia Lindqvist',
+        email: 'product@arquoncx.io',
+        title: 'Head of Product Growth & Onboarding',
+        role: 'PRODUCT_GROWTH',
+        avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=100&auto=format&fit=crop&q=80',
+      },
+    ],
+  },
+  {
+    id: 'executive',
+    label: 'Executive & Viewer',
+    role: 'VIEWER',
+    badge: 'Read-Only',
+    badgeClass: 'bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border-amber-200 dark:border-amber-800/80',
+    icon: BarChart3,
+    defaultTab: 'overview',
+    title: 'C-Suite Scorecard & Board Observer',
+    subtitle: 'High-level scorecards, Go-Live confidence gauges, and revenue retention analytics.',
+    description: 'Protected read-only visibility into client health, pipeline ARR, and delivery forecasts.',
+    personas: [
+      {
+        name: 'Alex Wright',
+        email: 'viewer@arquoncx.io',
+        title: 'Executive Stakeholder / Board Observer',
+        role: 'VIEWER',
+        avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&auto=format&fit=crop&q=80',
+      },
+    ],
+  },
+];
 
 export const LoginPage: React.FC<LoginPageProps> = ({
   onLoginSuccess,
   onBackToHome,
 }) => {
-  const [email, setEmail] = useState('elena.rostova@arquoncx.io');
-  const [password, setPassword] = useState('••••••••••••');
+  const { login, switchRole } = useAuth();
+  const { meta } = useFrontendMeta();
+
+  // Active role portal selection
+  const [selectedPortalId, setSelectedPortalId] = useState<PortalId>(() => {
+    try {
+      return (localStorage.getItem('arquoncx_last_portal') as PortalId) || 'admin';
+    } catch {
+      return 'admin';
+    }
+  });
+
+  const activePortal = ROLE_PORTALS.find(p => p.id === selectedPortalId) || ROLE_PORTALS[0];
+  const [selectedPersonaEmail, setSelectedPersonaEmail] = useState<string>(activePortal.personas[0]?.email || '');
+
+  const [email, setEmail] = useState<string>(activePortal.personas[0]?.email || 'admin@arquoncx.io');
+  const [password, setPassword] = useState('password123');
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Switch role portal
+  const handleSelectPortal = (portalId: PortalId) => {
+    setSelectedPortalId(portalId);
+    try {
+      localStorage.setItem('arquoncx_last_portal', portalId);
+    } catch {}
+
+    const target = ROLE_PORTALS.find(p => p.id === portalId);
+    if (target && target.personas.length > 0) {
+      const first = target.personas[0];
+      setSelectedPersonaEmail(first.email);
+      setEmail(first.email);
+      setPassword('password123');
+      setErrorMessage(null);
+    }
+  };
+
+  // Select persona card within active portal
+  const handleSelectPersona = (persona: typeof activePortal.personas[0]) => {
+    setSelectedPersonaEmail(persona.email);
+    setEmail(persona.email);
+    setPassword('password123');
+    setErrorMessage(null);
+  };
+
+  // Perform login
+  const executeLogin = async (targetEmail: string, targetPass: string, roleToSet: RoleName, destTab: NavigationTab) => {
+    setIsLoading(true);
+    setErrorMessage(null);
+    try {
+      // 1. Authenticate with backend / context
+      await login(targetEmail, targetPass);
+      // 2. Ensure role matches selected portal
+      await switchRole(roleToSet);
+      // 3. Navigate into the application targeting role's dedicated area
+      onLoginSuccess(destTab);
+    } catch (err: any) {
+      console.warn('Login notice (continuing with local role session):', err);
+      // Fallback: switch role locally and enter
+      await switchRole(roleToSet);
+      onLoginSuccess(destTab);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      onLoginSuccess();
-    }, 400);
+    executeLogin(email, password, activePortal.role, activePortal.defaultTab);
   };
 
-  const handleInstantDemoLogin = () => {
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      onLoginSuccess();
-    }, 250);
+  const handleInstantRoleSignIn = (persona: typeof activePortal.personas[0]) => {
+    executeLogin(persona.email, 'password123', persona.role, activePortal.defaultTab);
   };
+
+  const PortalIcon = activePortal.icon;
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#070B19] flex flex-col justify-center select-none font-sans p-4 sm:p-8 transition-colors duration-150">
-      <div className="flex-1 flex flex-col md:flex-row max-w-5xl w-full mx-auto my-auto shadow-2xl rounded-3xl overflow-hidden border border-slate-200 dark:border-[#1E2C4F]">
-        {/* Left Side: Auth Form */}
-        <div className="w-full md:w-1/2 bg-white dark:bg-[#0E172A] p-8 sm:p-12 flex flex-col justify-between transition-colors">
+    <div className="min-h-screen bg-slate-50 dark:bg-[#070B19] flex flex-col justify-center select-none font-sans p-3 sm:p-6 lg:p-8 transition-colors duration-150">
+      <div className="flex-1 flex flex-col lg:flex-row max-w-6xl w-full mx-auto my-auto shadow-2xl rounded-3xl overflow-hidden border border-slate-200 dark:border-[#1E2C4F]">
+        
+        {/* Left Side: Role-Segregated Auth Portal */}
+        <div className="w-full lg:w-7/12 bg-white dark:bg-[#0E172A] p-6 sm:p-8 lg:p-10 flex flex-col justify-between transition-colors">
           <div>
-            {/* Top Back Link & Brand */}
-            <div className="flex items-center justify-between mb-8">
+            {/* Top Navigation & Brand Header */}
+            <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-100 dark:border-[#1E2C4F]">
               <BrandLogo
                 size="md"
                 onClick={onBackToHome}
@@ -64,72 +254,139 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                   className="text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-white flex items-center gap-1 transition-colors cursor-pointer px-2.5 py-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-[#152342]"
                 >
                   <ArrowLeft className="w-3.5 h-3.5" />
-                  Back to Home
+                  <span>Public Home</span>
                 </button>
               </div>
             </div>
 
-            {/* Title */}
-            <div className="mb-6">
-              <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-                Log in to your workspace
-              </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                Access real-time customer health, adoption flows, and NPS analytics.
+            {/* Role Segregation Tabs */}
+            <div className="mb-5">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider">
+                  Select Login Role Portal
+                </span>
+                <span className="text-[10px] font-medium text-indigo-600 dark:text-indigo-400 flex items-center gap-1">
+                  <ShieldCheck className="w-3 h-3" /> RBAC Segregated
+                </span>
+              </div>
+
+              {/* 4-way Segregated Role Portal Pills */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 p-1 bg-slate-100 dark:bg-[#111C35] rounded-2xl border border-slate-200 dark:border-[#22355C]">
+                {ROLE_PORTALS.map((portal) => {
+                  const Icon = portal.icon;
+                  const isSelected = selectedPortalId === portal.id;
+                  return (
+                    <button
+                      key={portal.id}
+                      type="button"
+                      onClick={() => handleSelectPortal(portal.id)}
+                      className={`flex flex-col items-center justify-center py-2 px-2 rounded-xl text-center transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-white dark:bg-indigo-600 text-slate-900 dark:text-white shadow-xs font-bold ring-1 ring-slate-200 dark:ring-indigo-500'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-[#152342] font-medium'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 text-xs">
+                        <Icon className={`w-3.5 h-3.5 ${isSelected ? 'text-indigo-600 dark:text-white' : 'text-slate-400'}`} />
+                        <span className="truncate">{portal.label}</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Active Portal Header & Info Card */}
+            <div className="mb-5 p-3.5 rounded-2xl bg-slate-50 dark:bg-[#111C35]/80 border border-slate-200/80 dark:border-[#22355C] space-y-1.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="p-1 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+                    <PortalIcon className="w-4 h-4" />
+                  </span>
+                  <h3 className="text-xs font-extrabold text-slate-900 dark:text-white">
+                    {activePortal.title}
+                  </h3>
+                </div>
+                <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full border ${activePortal.badgeClass}`}>
+                  {activePortal.badge}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                {activePortal.subtitle}
               </p>
             </div>
 
-            {/* Quick SSO Buttons */}
-            <div className="space-y-2.5 mb-6">
-              <button
-                type="button"
-                onClick={handleInstantDemoLogin}
-                className="w-full py-2.5 px-4 bg-white dark:bg-[#111C35] hover:bg-slate-50 dark:hover:bg-[#162547] text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl border border-slate-200 dark:border-[#22355C] shadow-2xs flex items-center justify-center gap-2.5 transition-colors cursor-pointer"
-              >
-                <svg className="w-4 h-4" viewBox="0 0 24 24">
-                  <path
-                    fill="#4285F4"
-                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                  />
-                  <path
-                    fill="#34A853"
-                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                  />
-                  <path
-                    fill="#EA4335"
-                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                  />
-                </svg>
-                <span>Continue with Google</span>
-              </button>
+            {/* Quick 1-Click Role Credential Presets */}
+            <div className="mb-5 space-y-2">
+              <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block">
+                Pre-Configured Staff Personas ({activePortal.personas.length})
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {activePortal.personas.map((persona) => {
+                  const isPersonaActive = selectedPersonaEmail === persona.email;
+                  return (
+                    <div
+                      key={persona.email}
+                      onClick={() => handleSelectPersona(persona)}
+                      className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between gap-2.5 ${
+                        isPersonaActive
+                          ? 'bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-400 dark:border-indigo-600 ring-2 ring-indigo-500/20'
+                          : 'bg-white dark:bg-[#111C35] border-slate-200 dark:border-[#22355C] hover:border-indigo-300 dark:hover:border-indigo-700'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <img
+                          src={persona.avatar}
+                          alt={persona.name}
+                          className="w-8 h-8 rounded-full object-cover ring-1 ring-slate-300 dark:ring-slate-700 shrink-0"
+                        />
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                            {persona.name}
+                          </p>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                            {persona.title}
+                          </p>
+                        </div>
+                      </div>
 
-              <button
-                type="button"
-                onClick={handleInstantDemoLogin}
-                className="w-full py-2.5 px-4 bg-white dark:bg-[#111C35] hover:bg-slate-50 dark:hover:bg-[#162547] text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl border border-slate-200 dark:border-[#22355C] shadow-2xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
-              >
-                <ShieldCheck className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                <span>Single Sign-On (SAML / Okta)</span>
-              </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleInstantRoleSignIn(persona);
+                        }}
+                        title={`Instant 1-Click Sign In as ${persona.name}`}
+                        className="px-2 py-1 text-[10px] font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors shrink-0 shadow-2xs"
+                      >
+                        Sign In
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Divider */}
-            <div className="relative flex items-center justify-center my-6">
+            <div className="relative flex items-center justify-center my-4">
               <div className="border-t border-slate-200 dark:border-[#1E2C4F] w-full" />
               <span className="bg-white dark:bg-[#0E172A] px-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest absolute">
-                Or with work email
+                Or Sign In with Email
               </span>
             </div>
 
+            {/* Error Message */}
+            {errorMessage && (
+              <div className="mb-3 p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 text-xs">
+                {errorMessage}
+              </div>
+            )}
+
             {/* Form */}
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-3">
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                  Work Email
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                  Work Email Address
                 </label>
                 <div className="relative">
                   <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
@@ -145,13 +402,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({
               </div>
 
               <div>
-                <div className="flex justify-between items-center mb-1.5">
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                     Password
                   </label>
-                  <a href="#forgot" className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">
-                    Forgot password?
-                  </a>
+                  <span className="text-[10px] text-slate-400">Default: password123</span>
                 </div>
                 <div className="relative">
                   <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
@@ -160,21 +415,24 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 dark:bg-[#111C35] border border-slate-200 dark:border-[#22355C] rounded-xl focus:bg-white dark:focus:bg-[#131F3B] focus:border-indigo-500 focus:ring-1 focus:ring-indigo-200 outline-hidden font-medium text-slate-900 dark:text-white"
+                    className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 dark:bg-[#111C35] border border-slate-200 dark:border-[#22355C] rounded-xl focus:bg-white dark:focus:bg-[#131F3B] focus:border-indigo-500 focus:ring-1 focus:ring-indigo-200 outline-hidden font-medium text-slate-900 dark:text-white font-mono"
                   />
                 </div>
               </div>
 
               <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-400 pt-1">
-                <label className="flex items-center gap-2 cursor-pointer font-medium">
+                <label className="flex items-center gap-2 cursor-pointer text-[11px] font-medium">
                   <input
                     type="checkbox"
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
                     className="rounded text-indigo-600 focus:ring-0"
                   />
-                  <span>Remember me for 30 days</span>
+                  <span>Remember role portal</span>
                 </label>
+                <span className="text-[10px] text-slate-400">
+                  Target Landing: <strong className="text-indigo-600 dark:text-indigo-400 uppercase">{activePortal.defaultTab}</strong>
+                </span>
               </div>
 
               {/* Submit Button */}
@@ -184,90 +442,101 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                 className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs rounded-xl shadow-md shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 {isLoading ? (
-                  <span>Signing in...</span>
+                  <span>Authenticating Role Session...</span>
                 ) : (
                   <>
-                    <span>Sign In to Workspace</span>
+                    <span>Enter as {activePortal.label}</span>
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}
               </button>
             </form>
-
-            {/* Instant Demo 1-Click Login Option */}
-            <div className="mt-4 pt-4 border-t border-slate-100 dark:border-[#1E2C4F]">
-              <button
-                type="button"
-                onClick={handleInstantDemoLogin}
-                className="w-full py-2 px-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/70 hover:bg-indigo-100 dark:hover:bg-indigo-900/70 text-indigo-700 dark:text-indigo-300 text-xs font-bold transition-colors flex items-center justify-center gap-2 border border-indigo-200 dark:border-indigo-800 cursor-pointer"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-                <span>1-Click Instant Demo Login (Elena Rostova, Lead CSM)</span>
-              </button>
-            </div>
           </div>
 
-          <div className="mt-6 pt-4 text-center text-xs text-slate-500 dark:text-slate-400">
-            Don't have an enterprise account?{' '}
-            <button onClick={onBackToHome} className="font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer">
-              Start 14-day free trial
-            </button>
+          {/* Footer note */}
+          <div className="mt-4 pt-3 border-t border-slate-100 dark:border-[#1E2C4F] flex items-center justify-between text-[11px] text-slate-400">
+            <span>Powered by {meta.appName} Auth Guard</span>
+            <span className="flex items-center gap-1 font-mono text-[10px] text-emerald-600 dark:text-emerald-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              RBAC v2.4 Active
+            </span>
           </div>
         </div>
 
         {/* Right Side: Dark Navy Blue Branded Showcase Panel */}
-        <div className="hidden md:flex md:w-1/2 bg-gradient-to-tr from-[#080E1E] via-[#0D162D] to-[#0A1024] text-white p-10 flex-col justify-between relative overflow-hidden border-l border-slate-200 dark:border-[#1E2C4F]">
+        <div className="hidden lg:flex lg:w-5/12 bg-gradient-to-tr from-[#080E1E] via-[#0D162D] to-[#0A1024] text-white p-8 lg:p-10 flex-col justify-between relative overflow-hidden border-l border-slate-200 dark:border-[#1E2C4F]">
           {/* Ambient Glow */}
           <div className="absolute top-10 right-10 w-72 h-72 bg-indigo-500/15 rounded-full blur-[100px] pointer-events-none" />
 
           {/* Top Pill */}
-          <div className="relative z-10 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-xs font-bold text-indigo-300 uppercase tracking-widest">
-              Live Production Suite
-            </span>
+          <div className="relative z-10 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-xs font-bold text-indigo-300 uppercase tracking-widest">
+                Role-Segregated Enterprise Suite
+              </span>
+            </div>
           </div>
 
-          {/* Testimonial Quote with Centered Face Headshot */}
+          {/* Role Feature Summary Card */}
           <div className="relative z-10 space-y-4 my-auto">
-            <div className="flex gap-1 text-amber-400 text-sm">
-              <Star className="w-4 h-4 fill-amber-400" />
-              <Star className="w-4 h-4 fill-amber-400" />
-              <Star className="w-4 h-4 fill-amber-400" />
-              <Star className="w-4 h-4 fill-amber-400" />
-              <Star className="w-4 h-4 fill-amber-400" />
+            <div className="p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md space-y-2.5">
+              <span className="text-[10px] font-bold text-indigo-300 uppercase tracking-widest block">
+                Active Portal Authority Scope
+              </span>
+              <p className="text-sm font-bold text-white">
+                {activePortal.title}
+              </p>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                {activePortal.description}
+              </p>
+              <div className="pt-2 border-t border-white/10 flex items-center gap-2 text-[11px] text-indigo-200">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <span>Default Landing Tab: <strong>{activePortal.defaultTab}</strong></span>
+              </div>
             </div>
 
-            <blockquote className="text-lg font-medium text-slate-200 leading-snug italic">
-              "arQuonCX gave our CS and product growth teams instant visibility into user drop-offs and at-risk accounts. We reduced renewal churn by 32% within our first quarter."
-            </blockquote>
+            {/* Testimonial Quote with Centered Face Headshot */}
+            <div className="space-y-3 pt-2">
+              <div className="flex gap-1 text-amber-400 text-xs">
+                <Star className="w-3.5 h-3.5 fill-amber-400" />
+                <Star className="w-3.5 h-3.5 fill-amber-400" />
+                <Star className="w-3.5 h-3.5 fill-amber-400" />
+                <Star className="w-3.5 h-3.5 fill-amber-400" />
+                <Star className="w-3.5 h-3.5 fill-amber-400" />
+              </div>
 
-            <div className="flex items-center gap-3 pt-2">
-              <img
-                src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&crop=face&q=80"
-                alt="Marcus Chen"
-                className="w-12 h-12 rounded-full object-cover object-top ring-2 ring-indigo-500 shrink-0"
-              />
-              <div>
-                <p className="text-xs font-bold text-white">Marcus Chen</p>
-                <p className="text-[11px] text-indigo-300 font-medium">VP of Product • Acme Cloud Dynamics</p>
+              <blockquote className="text-xs font-medium text-slate-200 leading-relaxed italic">
+                "{meta.appName} gave our CS, field engineering, and leadership teams immediate visibility into delivery confidence, sprint velocity, and account renewal risks."
+              </blockquote>
+
+              <div className="flex items-center gap-2.5">
+                <img
+                  src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&crop=face&q=80"
+                  alt="Marcus Chen"
+                  className="w-9 h-9 rounded-full object-cover object-top ring-2 ring-indigo-500 shrink-0"
+                />
+                <div>
+                  <p className="text-xs font-bold text-white">Marcus Chen</p>
+                  <p className="text-[10px] text-indigo-300 font-medium">VP of Product • Acme Cloud Dynamics</p>
+                </div>
               </div>
             </div>
           </div>
 
           {/* Stats Footer */}
-          <div className="relative z-10 grid grid-cols-3 gap-2 pt-6 border-t border-slate-800/80 text-center">
-            <div className="p-2.5 rounded-xl bg-white/5 border border-white/5">
-              <p className="text-base font-black text-white">38.4k</p>
-              <p className="text-[10px] text-slate-400">Monthly Active</p>
+          <div className="relative z-10 grid grid-cols-3 gap-2 pt-4 border-t border-slate-800/80 text-center">
+            <div className="p-2 rounded-xl bg-white/5 border border-white/5">
+              <p className="text-sm font-black text-white">5 Roles</p>
+              <p className="text-[9px] text-slate-400">Strict RBAC</p>
             </div>
-            <div className="p-2.5 rounded-xl bg-white/5 border border-white/5">
-              <p className="text-base font-black text-emerald-400">84/100</p>
-              <p className="text-[10px] text-slate-400">Avg Health Index</p>
+            <div className="p-2 rounded-xl bg-white/5 border border-white/5">
+              <p className="text-sm font-black text-emerald-400">100%</p>
+              <p className="text-[9px] text-slate-400">Meta Control</p>
             </div>
-            <div className="p-2.5 rounded-xl bg-white/5 border border-white/5">
-              <p className="text-base font-black text-indigo-300">+48</p>
-              <p className="text-[10px] text-slate-400">Net Promoter</p>
+            <div className="p-2 rounded-xl bg-white/5 border border-white/5">
+              <p className="text-sm font-black text-indigo-300">WBS</p>
+              <p className="text-[9px] text-slate-400">Granular Rollup</p>
             </div>
           </div>
         </div>

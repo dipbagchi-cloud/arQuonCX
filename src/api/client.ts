@@ -217,4 +217,41 @@ export const api = {
         method: 'DELETE',
       }),
   },
+
+  admin: {
+    getMeta: () =>
+      request<{
+        success: boolean;
+        meta: any;
+        featureFlags: any;
+        defaultLandingTab: string;
+        availableRoles: string[];
+        rolePermissions: Record<string, string[]>;
+      }>('/admin/meta'),
+    updateMeta: (data: { meta?: any; flags?: any; landingTab?: string }) =>
+      request<{
+        success: boolean;
+        message: string;
+        meta: any;
+        featureFlags: any;
+        defaultLandingTab: string;
+      }>('/admin/meta', {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+    getUsers: () =>
+      request<{ success: boolean; users: any[] }>('/admin/users'),
+    updateUserRole: (id: string, role: string) =>
+      request<{ success: boolean; message: string; user: any }>(`/admin/users/${id}/role`, {
+        method: 'PUT',
+        body: JSON.stringify({ role }),
+      }),
+    inviteUser: (data: { name: string; email: string; role: string; title?: string; department?: string }) =>
+      request<{ success: boolean; message: string; user: any }>('/admin/users/invite', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    getAuditLogs: () =>
+      request<{ success: boolean; auditLogs: any[] }>('/admin/audit-logs'),
+  },
 };

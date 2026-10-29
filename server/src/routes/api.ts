@@ -12,6 +12,7 @@ import * as Integrations from '../controllers/integrationsController';
 import * as Telemetry from '../controllers/telemetryController';
 import * as Delivery from '../controllers/deliveryController';
 import * as Wbs from '../controllers/wbsController';
+import * as Admin from '../controllers/adminController';
 
 const router = Router();
 
@@ -83,5 +84,13 @@ router.get('/delivery/projects/:id/wbs', requirePermission('account:read'), Wbs.
 router.post('/delivery/projects/:id/wbs', requirePermission('account:write'), Wbs.createWbsTask);
 router.patch('/delivery/wbs/:taskId', requirePermission('account:write'), Wbs.updateWbsTask);
 router.delete('/delivery/wbs/:taskId', requirePermission('account:write'), Wbs.deleteWbsTask);
+
+// Admin Console, Frontend Meta Management & Staff Governance
+router.get('/admin/meta', Admin.getAdminMeta);
+router.put('/admin/meta', requirePermission('team:manage'), Admin.updateAdminMeta);
+router.get('/admin/users', requirePermission('team:manage'), Admin.getAdminUsers);
+router.put('/admin/users/:id/role', requirePermission('team:manage'), Admin.updateUserRole);
+router.post('/admin/users/invite', requirePermission('team:manage'), Admin.inviteUser);
+router.get('/admin/audit-logs', requirePermission('audit:read'), Admin.getAuditLogs);
 
 export default router;

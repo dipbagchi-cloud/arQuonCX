@@ -1,4 +1,4 @@
-# arQuonCX ó Enterprise Customer Success & Product Growth Platform
+# arQuonCX ÔøΩ Enterprise Customer Success & Product Growth Platform
 
 [![License: Proprietary](https://img.shields.io/badge/License-Proprietary-blue.svg)](#)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg)](https://www.typescriptlang.org/)
@@ -19,7 +19,7 @@
 - **Excel / CSV Ingestion Engine**: Instant drag-and-drop ingestion of project delivery sheets with automatic normalization and 5-stage milestone generation.
 - **1-Click Executive Memo**: Instant copy-to-clipboard Markdown executive memo for leadership status syncs.
 
-### 2. ?? Accounts 360∞ & Health Scoring
+### 2. ?? Accounts 360ÔøΩ & Health Scoring
 - Multi-factor Customer Health Score computation balancing Usage, Support Tickets, Champion Engagement, and NPS Sentiment.
 - Renewal risk indicators, contract ARR countdowns, and assigned CSM portfolio tracking.
 - Stakeholder relationship directory with Executive Sponsor and Champion tagging.
@@ -122,7 +122,50 @@ egative\).
 
 ---
 
-## ?? Theme & Accessibility
+
+
+---
+
+## üê≥ Docker Container Deployment
+
+arQuonCX includes complete Docker and Docker Compose support for single-command production deployment with persistent SQLite database storage and built-in health monitoring.
+
+### 1. Quick Start with Docker Compose
+```bash
+# Build and start container in detached mode
+docker compose up -d --build
+
+# Follow live container logs
+docker compose logs -f
+
+# Check container health status
+docker compose ps
+```
+
+The application will be accessible at:
+- **Web Platform & Unified API**: http://localhost:3001
+- **Health Check Endpoint**: http://localhost:3001/health
+
+### 2. Available NPM Docker Scripts
+```bash
+npm run docker:build   # Build Docker image
+npm run docker:up      # Launch container in background
+npm run docker:logs    # Follow container logs
+npm run docker:down    # Stop and remove containers
+```
+
+### 3. Container Configuration & Persistence
+- **Persistent Volume**: Database is stored in a dedicated Docker volume (`arquoncx_data`) at `/app/prisma/data/dev.db`, preserving all accounts, WBS tasks, and RBAC users across rebuilds.
+- **Port Mapping**: Defaults to `3001:3001`. To serve directly on standard HTTP port 80, change the port mapping in `docker-compose.yml` to `"80:3001"`.
+- **Environment Variables**:
+  - `PORT`: Server listen port (default `3001`).
+  - `NODE_ENV`: Runtime mode (`production`).
+  - `DATABASE_URL`: SQLite connection string (`file:/app/prisma/data/dev.db`).
+  - `JWT_SECRET`: Secret key for JWT token signing.
+
+---
+
+## üé® Theme & Accessibility
 - Full native support for **Light** and **Dark** modes with persistent state in \localStorage\.
 - High-contrast bespoke SVG brand identity with adaptive isometric quantum prism mark.
 - Micro-compact typography and clean layout engineered for enterprise data density.
@@ -130,4 +173,4 @@ egative\).
 ---
 
 ## ?? License
-Copyright © 2026 arQuonCX Inc. All rights reserved. Proprietary software.
+Copyright ÔøΩ 2026 arQuonCX Inc. All rights reserved. Proprietary software.

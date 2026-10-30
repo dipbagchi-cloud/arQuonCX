@@ -1,0 +1,29 @@
+services:
+  arquoncx-dev:
+    image: node:20-alpine
+    container_name: arquoncx-dev-app
+    working_dir: /app
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - NODE_ENV=development
+      - DATABASE_URL=file:/app/prisma/data/dev.db
+      - JWT_SECRET=arquoncx-dev-secret-key-2026
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - arquoncx_dev_data:/app/prisma/data
+    command: >
+      sh -c "apk add --no-cache openssl &&
+             npm install &&
+             npx prisma generate &&
+             mkdir -p /app/prisma/data &&
+             npx prisma db push --skip-generate &&
+             npm run dev:all"
+
+volumes:
+  arquoncx_dev_data:
+    name: arquoncx_dev_data

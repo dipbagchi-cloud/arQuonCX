@@ -1,0 +1,27 @@
+services:
+  arquoncx:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: arquoncx-app
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - NODE_ENV=production
+      - DATABASE_URL=file:/app/prisma/data/dev.db
+      - JWT_SECRET=arquoncx-enterprise-secure-jwt-key-2026
+    volumes:
+      # Persistent SQLite database storage across container rebuilds
+      - arquoncx_data:/app/prisma/data
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3001/health"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  arquoncx_data:
+    name: arquoncx_data

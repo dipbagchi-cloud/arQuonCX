@@ -1,4 +1,7 @@
 import { Request, Response } from 'express';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { addAuditLog, resetAuditLogs } from './adminController';
 import { getWbsTasksList, setWbsTasksList, syncProjectFromWbs, resetWbsTasks } from './wbsController';
@@ -13,13 +16,18 @@ import {
   AdoWorkItemType
 } from '../../../src/types';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const CREDENTIALS_PATH = path.resolve(__dirname, '../../../server/data/ado-credentials.json');
+const ENV_PATH = path.resolve(__dirname, '../../../.env');
+
 // In-Memory Token and State Cache
 let storedPersonalAccessToken: string = process.env.AZURE_DEVOPS_PAT || '';
 
 let adoConfig: AdoConfig = {
   enabled: false,
-  organizationUrl: '',
-  projectName: '',
+  organizationUrl: process.env.AZURE_DEVOPS_ORG_URL || '',
+  projectName: process.env.AZURE_DEVOPS_PROJECT || '',
   personalAccessTokenConfigured: !!storedPersonalAccessToken,
   authType: 'pat',
   defaultAreaPath: '',
@@ -29,6 +37,85 @@ let adoConfig: AdoConfig = {
   lastSyncStatus: undefined,
   syncedWorkItemCount: 0,
 };
+
+function updateEnvFile(key: string, value: string) {
+  try {
+    if (!fs.existsSync(ENV_PATH)) return;
+    let envContent = fs.readFileSync(ENV_PATH, 'utf8');
+    const regex = new RegExp(`^${key}=.*$`, 'm');
+    if (regex.test(envContent)) {
+      envContent = envContent.replace(regex, `${key}="${value}"`);
+    } else {
+      envContent = envContent.trim() + `\n${key}="${value}"\n`;
+    }
+    fs.writeFileSync(ENV_PATH, envContent, 'utf8');
+  } catch (err) {
+    console.warn(`Could not update ${key} in .env:`, err);
+  }
+}
+
+function loadAdoCredentials() {
+  try {
+    if (fs.existsSync(CREDENTIALS_PATH)) {
+      const data = JSON.parse(fs.readFileSync(CREDENTIALS_PATH, 'utf8'));
+      if (data.personalAccessToken) {
+        storedPersonalAccessToken = data.personalAccessToken;
+      }
+      if (data.organizationUrl) adoConfig.organizationUrl = data.organizationUrl;
+      if (data.projectName) adoConfig.projectName = data.projectName;
+      if (data.defaultAreaPath) adoConfig.defaultAreaPath = data.defaultAreaPath;
+      if (data.defaultIterationPath) adoConfig.defaultIterationPath = data.defaultIterationPath;
+      if (data.syncFrequency) adoConfig.syncFrequency = data.syncFrequency;
+      adoConfig.personalAccessTokenConfigured = !!storedPersonalAccessToken;
+      if (adoConfig.organizationUrl && adoConfig.personalAccessTokenConfigured) {
+        adoConfig.enabled = true;
+      }
+    } else if (process.env.AZURE_DEVOPS_PAT) {
+      storedPersonalAccessToken = process.env.AZURE_DEVOPS_PAT;
+      adoConfig.personalAccessTokenConfigured = true;
+      if (process.env.AZURE_DEVOPS_ORG_URL) adoConfig.organizationUrl = process.env.AZURE_DEVOPS_ORG_URL;
+      if (process.env.AZURE_DEVOPS_PROJECT) adoConfig.projectName = process.env.AZURE_DEVOPS_PROJECT;
+      if (adoConfig.organizationUrl) adoConfig.enabled = true;
+    }
+  } catch (err) {
+    console.warn('Could not load stored ADO credentials:', err);
+  }
+}
+
+function persistAdoConfig(data: { personalAccessToken?: string; organizationUrl?: string; projectName?: string; syncFrequency?: string }) {
+  try {
+    const dir = path.dirname(CREDENTIALS_PATH);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    let existing: any = {};
+    if (fs.existsSync(CREDENTIALS_PATH)) {
+      try { existing = JSON.parse(fs.readFileSync(CREDENTIALS_PATH, 'utf8')); } catch {}
+    }
+    const updated = {
+      ...existing,
+      organizationUrl: data.organizationUrl !== undefined ? data.organizationUrl : (existing.organizationUrl || adoConfig.organizationUrl),
+      projectName: data.projectName !== undefined ? data.projectName : (existing.projectName || adoConfig.projectName),
+      syncFrequency: data.syncFrequency !== undefined ? data.syncFrequency : (existing.syncFrequency || adoConfig.syncFrequency),
+      personalAccessToken: data.personalAccessToken !== undefined ? data.personalAccessToken : existing.personalAccessToken,
+      updatedAt: new Date().toISOString(),
+    };
+    fs.writeFileSync(CREDENTIALS_PATH, JSON.stringify(updated, null, 2), 'utf8');
+
+    if (data.personalAccessToken) {
+      updateEnvFile('AZURE_DEVOPS_PAT', data.personalAccessToken);
+    }
+    if (data.organizationUrl) {
+      updateEnvFile('AZURE_DEVOPS_ORG_URL', data.organizationUrl);
+    }
+    if (data.projectName) {
+      updateEnvFile('AZURE_DEVOPS_PROJECT', data.projectName);
+    }
+  } catch (err) {
+    console.warn('Could not persist ADO credentials:', err);
+  }
+}
+
+// Auto-load credentials immediately on module evaluation
+loadAdoCredentials();
 
 export interface RemoteAdoProject {
   id: string;
@@ -142,6 +229,14 @@ export async function updateAdoConfig(req: AuthenticatedRequest, res: Response):
     if (updates.syncFrequency) {
       adoConfig.syncFrequency = updates.syncFrequency;
     }
+
+    // Persist credentials to disk (.env and json) so server restarts preserve PAT
+    persistAdoConfig({
+      organizationUrl: adoConfig.organizationUrl,
+      projectName: adoConfig.projectName,
+      syncFrequency: adoConfig.syncFrequency,
+      personalAccessToken: storedPersonalAccessToken || undefined,
+    });
 
     addAuditLog({
       action: 'ADO_CONFIG_UPDATED',
@@ -865,22 +960,22 @@ export async function adoWebhook(req: Request, res: Response): Promise<void> {
  */
 export async function cleanAdoTestData(req: Request, res: Response): Promise<void> {
   try {
-    storedPersonalAccessToken = '';
     discoveredAdoProjects = [];
     PRESEEDED_ADO_WORK_ITEMS = {};
-    adoConfig = {
-      enabled: false,
-      organizationUrl: '',
-      projectName: '',
-      personalAccessTokenConfigured: false,
-      authType: 'pat',
-      defaultAreaPath: '',
-      defaultIterationPath: '',
-      syncFrequency: 'manual',
-      lastSyncTime: undefined,
-      lastSyncStatus: undefined,
-      syncedWorkItemCount: 0,
-    };
+
+    const shouldWipeCreds = req.query.wipeCredentials === 'true' || req.body?.wipeCredentials === true;
+    if (shouldWipeCreds) {
+      storedPersonalAccessToken = '';
+      adoConfig.personalAccessTokenConfigured = false;
+      adoConfig.organizationUrl = '';
+      adoConfig.projectName = '';
+      adoConfig.enabled = false;
+      try { if (fs.existsSync(CREDENTIALS_PATH)) fs.unlinkSync(CREDENTIALS_PATH); } catch {}
+    } else {
+      // Reload credentials to ensure user's saved PAT and Org URL are preserved
+      loadAdoCredentials();
+      adoConfig.syncedWorkItemCount = 0;
+    }
 
     // Reset WBS tasks (purges all ADO-* work items)
     resetWbsTasks();
@@ -892,14 +987,21 @@ export async function cleanAdoTestData(req: Request, res: Response): Promise<voi
     addAuditLog({
       action: 'SYSTEM_CLEAN_TEST_DATA',
       actor: 'System Admin',
-      details: 'All test data, mock projects, and Azure DevOps credentials were wiped clean.',
+      details: shouldWipeCreds 
+        ? 'All test data and Azure DevOps credentials were wiped clean.'
+        : 'All test tasks and test projects were purged while preserving configured ADO credentials.',
       severity: 'warning',
     });
 
     res.json({
       success: true,
-      message: 'All test data, Azure DevOps credentials, and imported tasks have been cleaned successfully.',
-      config: adoConfig,
+      message: shouldWipeCreds
+        ? 'All test data and credentials have been cleaned.'
+        : 'All test work items and test projects have been purged. Your saved Azure DevOps credentials and organization settings are preserved.',
+      config: {
+        ...adoConfig,
+        personalAccessTokenConfigured: !!storedPersonalAccessToken,
+      },
       projects: deliveryProjects,
       tasksCount: getWbsTasksList().length,
     });

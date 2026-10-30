@@ -27,6 +27,8 @@ dist-ssr
 .env
 .env.*
 !.env.example
+server/data/
+server/data/*
 
 # Database & SQLite files
 *.db
